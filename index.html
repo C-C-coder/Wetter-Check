@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bergtouren Wetter Ampel</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="logo.svg">
+    <link rel="icon" href="logo.svg" type="image/svg+xml">
+    <style>
+        :root { --primary: #2c3e50; --accent: #27ae60; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: #333; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 550px; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 25px; }
+        .logo-img { width: 100px; height: 100px; margin-bottom: 15px; }
+        h1 { color: var(--primary); font-size: 22px; margin: 0; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; color: #555; }
+        .row { display: flex; gap: 10px; }
+        input, select { width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 12px; font-size: 15px; transition: border 0.3s; box-sizing: border-box; }
+        input:focus, select:focus { border-color: var(--accent); outline: none; }
+        .gps-btn { background: #3498db; color: white; border: none; padding: 0 15px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 13px; white-space: nowrap; }
+        .main-btn { background: var(--accent); color: white; border: none; padding: 15px; width: 100%; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
+        .main-btn:active { transform: scale(0.98); }
+        #results { margin-top: 25px; }
+        
+        /* Vollflächig eingefärbte Ampel-Slots */
+        .slot { padding: 15px; margin-bottom: 12px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; gap: 10px; }
+        .status-green { background: #e8f8f5; border-left: 6px solid #27ae60; color: #0e6251; }
+        .status-yellow { background: #fef9e7; border-left: 6px solid #f39c12; color: #7d6608; }
+        .status-red { background: #fadbd8; border-left: 6px solid #c0392b; color: #641e16; }
+        .badge { font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; background: rgba(0,0,0,0.08); }
+        
+        .location-title { font-weight: bold; color: var(--primary); margin-bottom: 10px; font-size: 15px; }
+        .meta-info { margin-top: 25px; font-size: 11px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <img src="logo.svg" class="logo-img" alt="Logo">
+        <h1>Bergtouren Wetter Ampel</h1>
+    </div>
+    
+    <div class="form-group">
+        <label>Koordinaten (Breite, Länge):</label>
+        <div class="row" style="margin-bottom: 8px;">
+            <input type="text" id="lat" placeholder="Breite (z.B. 47.4722)">
+            <input type="text" id="lon" placeholder="Länge (z.B. 13.6105)">
+        </div>
+        <button type="button" class="gps-btn" style="width:100%; padding: 12px;" onclick="getGPS()">📍 Aktueller Standort</button>
+    </div>
+    
+    <div class="form-group">
+        <label>Startzeit:</label>
+        <input type="datetime-local" id="startTime">
+    </div>
+
+    <div class="form-group">
+        <label>Tourendauer:</label>
+        <select id="duration">
+            <option value="4">4 Stunden (Halbtag)</option>
+            <option value="6" selected>6 Stunden (Normal)</option>
+            <option value="8">8 Stunden (Tagestour)</option>
+            <option value="10">10 Stunden (Lange Tour)</option>
+        </select>
+    </div>
+
+    <button class="main-btn" onclick="analyzeRisk()">Risiko analysieren</button>
+    <div id="results"></div>
+</div>
+
+<script>
+    document.getElementById('startTime').value = new Date().toISOString().slice(0,16);
+
+    function getGPS() {
+        if (!navigator.geolocation) {
+            alert("GPS wird vom Browser nicht unterstützt.");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(p => {
+            document.getElementById('lat').value = p.coords.latitude.toFixed(4);
+            document.getElementById('lon').value = p.coords.longitude.toFixed(4);
+        }, () => {
+            alert("Standort konnte nicht ermittelt werden.");
+        });
+    }
+
+    async function analyzeRisk() {
+        const lat = document.getElementById('lat'].value.trim();
+        const lon = document.getElementById('lon'].value.trim();
+        const startTimeStr = document.getElementById('startTime'].value;
+        const duration = parseInt(document.getElementById('duration').value);
+
+        if(!lat || !lon || !startTimeStr) {
+            alert("Bitte Koordinaten und Startzeit eingeben.");
+            return;
+        }
+
+        document.getElementById('results').innerHTML = '<p style="text-align:center; color:#7f8c8d;">Ermittle Wetterdaten & Standort...</p>';
+
+        const startDt = new Date(startTimeStr);
+        const startDateStr = startDt.toISOString().split('T')[0];
+        const startHour = startDt.getHours();
+
+        // Open-Meteo Wetterdaten + Geocoding für Ortsnamen
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,wind_gusts_10m,cape&start_date=${startDateStr}&end_date=${startDateStr}`;
+        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=nearest&latitude=${lat}&longitude=${lon}&count=1&language=de`;
+
+        try {
+            const [weatherRes, geoRes] = await Promise.all([
+                fetch(weatherUrl),
+                fetch(geoUrl).catch(() => null)
+            ]);
+
+            const data = await weatherRes.json();
+            let locationName = `Position (${lat}, ${lon})`;
+            
+            if (geoRes && geoRes.ok) {
+                const geoData = await geoRes.json();
+                if (geoData.results && geoData.results.length > 0) {
+                    const place = geoData.results[0];
+                    locationName = `${place.name} (${place.country || 'Region'})`;
+                }
+            }
+
+            const hourly = data.hourly;
+            let html = `<div class="location-title">📍 Ziel: ${locationName}</div>`;
+            let slotsCount = 0;
+
+            for (let i = 0; i < duration; i++) {
+                let currentHourIndex = startHour + i;
+                if (currentHourIndex >= hourly.time.length) break;
+
+                let timeFormatted = hourly.time[currentHourIndex].replace('T', ' ');
+                let hourOnly = parseInt(hourly.time[currentHourIndex].split('T')[1].split(':')[0]);
+                let temp = hourly.temperature_2m[currentHourIndex];
+                let rain = hourly.precipitation[currentHourIndex];
+                let gust = hourly.wind_gusts_10m[currentHourIndex];
+                let cape = hourly.cape ? hourly.cape[currentHourIndex] : 0;
+
+                let risk = 'green';
+                let badgeText = 'STABIL (Grün)';
+                let reasons = [];
+
+                if (cape > 400 && hourOnly >= 12) {
+                    risk = 'red';
+                    reasons.push("Gewitterrisiko (Thermik)!");
+                } else if (rain > 0.5) {
+                    risk = (risk === 'red') ? 'red' : 'yellow';
+                    reasons.push(`Niederschlag (${rain} mm)`);
+                }
+
+                if (gust > 50) {
+                    risk = 'red';
+                    reasons.push(`Sturmböen (${gust.toFixed(0)} km/h)`);
+                } else if (gust > 35) {
+                    risk = (risk === 'red') ? 'red' : 'yellow';
+                    reasons.push(`Frischer Wind (${gust.toFixed(0)} km/h)`);
+                }
+
+                if (reasons.length === 0) {
+                    reasons.push("Wetterverhältnisse unauffällig.");
+                } else if (risk === 'yellow') {
+                    badgeText = 'ACHTUNG (Gelb)';
+                } else if (risk === 'red') {
+                    badgeText = 'KRITISCH (Rot)';
+                }
+
+                let cssClass = 'status-green';
+                if (risk === 'yellow') cssClass = 'status-yellow';
+                if (risk === 'red') cssClass = 'status-red';
+
+                html += `
+                    <div class="slot ${cssClass}">
+                        <div>
+                            <strong>${timeFormatted}</strong><br>
+                            <small>Temp: ${temp}°C | Böen: ${gust} km/h | Regen: ${rain} mm</small><br>
+                            <em>${reasons.join(' | ')}</em>
+                        </div>
+                        <div><span class="badge">${badgeText}</span></div>
+                    </div>
+                `;
+                slotsCount++;
+            }
+
+            if (slotsCount > 0) {
+                html += `
+                    <div class="meta-info">
+                        Datenquelle: Open-Meteo.com<br>
+                        Aktualisiert: ${new Date().toLocaleTimeString('de-DE')}
+                    </div>
+                `;
+            } else {
+                html += '<p>Keine Wetterdaten für diesen Zeitraum verfügbar.</p>';
+            }
+
+            document.getElementById('results').innerHTML = html;
+
+        } catch(e) {
+            document.getElementById('results').innerHTML = `<p style="color:red; text-align:center;">Fehler beim Laden der Wetterdaten.</p>`;
+        }
+    }
+</script>
+</body>
+</html>
