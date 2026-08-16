@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bergtouren Wetter Ampel – Alpin-Wetter & Risiko-Analyzer</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 750px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .logo-area { text-align: center; margin-bottom: 15px; }
+        .logo-area svg { width: 100px; height: 100px; }
+        h1 { color: #2c3e50; font-size: 24px; margin-bottom: 5px; text-align: center; }
+        p.subtitle { color: #7f8c8d; margin-top: 0; font-size: 14px; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        .coord-wrapper { display: flex; gap: 10px; }
+        .coord-wrapper input { flex: 1; }
+        .gps-btn { background: #2980b9; color: white; border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; white-space: nowrap; }
+        .gps-btn:hover { background: #1f618d; }
+        .location-info { font-size: 13px; color: #2980b9; margin-top: 5px; font-weight: bold; }
+        button.main-btn { background: #27ae60; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; margin-top: 10px; }
+        button.main-btn:hover { background: #219653; }
+        #results { margin-top: 25px; }
+        .slot { padding: 12px 15px; margin-bottom: 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; gap: 10px; }
+        .status-green { background: #e8f8f5; border-left: 5px solid #27ae60; color: #0e6251; }
+        .status-yellow { background: #fef9e7; border-left: 5px solid #f39c12; color: #7d6608; }
+        .status-red { background: #fadbd8; border-left: 5px solid #c0392b; color: #641e16; }
+        .badge { font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
+        .info-box { background: #ebf5fb; border-left: 5px solid #2980b9; padding: 10px 15px; border-radius: 6px; font-size: 13px; color: #1b4f72; margin-bottom: 20px; }
+        .offline-banner { background: #fdebd0; border-left: 5px solid #d35400; padding: 10px 15px; border-radius: 6px; font-size: 13px; color: #784212; margin-bottom: 15px; display: none; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="logo-area">
+        <!-- Angepasstes SVG-Logo mit Bergen, Ampel und Edelweiß -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+            <defs>
+                <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#1e3c72" />
+                    <stop offset="100%" stop-color="#2a5298" />
+                </linearGradient>
+            </defs>
+            <circle cx="250" cy="250" r="230" fill="url(#skyGrad)" />
+            
+            <!-- Berge -->
+            <polygon points="60,370 200,190 340,370" fill="#7f8c8d" opacity="0.5" />
+            <polygon points="140,370 250,160 360,370" fill="#bdc3c7" opacity="0.8" />
+            <polygon points="190,370 300,220 430,370" fill="#ecf0f1" />
+            <polygon points="265,295 300,220 325,270" fill="#bdc3c7" />
+
+            <!-- Wetter-Ampel im Himmel -->
+            <circle cx="370" cy="120" r="12" fill="#e74c3c" />
+            <circle cx="370" cy="150" r="12" fill="#f1c40f" />
+            <circle cx="370" cy="180" r="14" fill="#2ecc71" />
+
+            <!-- Edelweiß Symbol (stilisiert im linken Himmel / oberen Bereich) -->
+            <g transform="translate(130, 140)">
+                <!-- Blütenblätter -->
+                <ellipse cx="0" cy="-25" rx="8" ry="20" fill="#ffffff" opacity="0.9" />
+                <ellipse cx="18" cy="-18" rx="8" ry="20" fill="#ffffff" opacity="0.9" transform="rotate(45, 18, -18)" />
+                <ellipse cx="25" cy="0" rx="8" ry="20" fill="#ffffff" opacity="0.9" transform="rotate(90, 25, 0)" />
+                <ellipse cx="18" cy="18" rx="8" ry="20" fill="#ffffff" opacity="0.9" transform="rotate(135, 18, 18)" />
+                <ellipse cx="0" cy="25" rx="8" ry="20" fill="#ffffff" opacity="0.9" transform="rotate(180, 0, 25)" />
+                <ellipse cx="-18" cy="18" rx="8" ry="20" fill="#ffffff" opacity="0.9" transform="rotate(225, -18, 18)" />
+                <ellipse cx="-25" cy="0" rx="8" ry="20" fill="#ffffff" opacity="0.9" transform="rotate(270, -25, 0)" />
+                <ellipse cx="-18" cy="-18" rx="8" ry="20" fill="#ffffff" opacity="0.9" transform="rotate(315, -18, -18)" />
+                <!-- Gelbes Zentrum -->
+                <circle cx="0" cy="0" r="10" fill="#f1c40f" />
+                <circle cx="0" cy="0" r="6" fill="#d35400" />
+            </g>
+        </svg>
+    </div>
+    <h1>Bergtouren Wetter Ampel</h1>
+    <p class="subtitle">Stundengenaue Risiko-Analyse für Bergtouren</p>
+    
+    <div id="offlineBanner" class="offline-banner">
+        ⚠️ <strong>Kein Internetempfang:</strong> Zeige automatisch die letzte gespeicherte Vorschau!
+    </div>
+
+    <div class="info-box">
+        💡 <strong>Hinweis:</strong> Wetterdaten werden bei jeder erfolgreichen Abfrage im Hintergrund automatisch im Browser gesichert, damit sie am Berg ohne Netz verfügbar sind.
+    </div>
+
+    <div class="form-group">
+        <label>Standort (Lat, Lon):</label>
+        <div class="coord-wrapper">
+            <input type="text" id="coords" value="47.4722, 13.6105" onchange="resolveLocationName()">
+            <button type="button" class="gps-btn" onclick="getGPSLocation()">📍 GPS nutzen</button>
+        </div>
+        <div id="locationName" class="location-info">📍 Zielgebiet: Dachstein / Ramsau am Dachstein</div>
+    </div>
+    
+    <div class="form-group">
+        <label>Geplantes Datum & Startzeit:</label>
+        <input type="datetime-local" id="startTime">
+    </div>
+    
+    <div class="form-group">
+        <label>Geplante Tourendauer:</label>
+        <select id="duration">
+            <option value="4">4 Stunden (Halbtag)</option>
+            <option value="6" selected>6 Stunden (Normal)</option>
+            <option value="8">8 Stunden (Tagestour)</option>
+            <option value="10">10 Stunden (Lange Tour)</option>
+        </select>
+    </div>
+
+    <button class="main-btn" onclick="analyzeRisk()">Risiko-Matrix berechnen</button>
+
+    <div id="results"></div>
+</div>
+
+<script>
+    const now = new Date();
+    now.setHours(8, 0, 0, 0);
+    document.getElementById('startTime').value = now.toISOString().slice(0,16);
+
+    async function resolveLocationName(lat, lon) {
+        if (!lat || !lon) {
+            const coordsInput = document.getElementById('coords').value.split(',');
+            lat = parseFloat(coordsInput[0]);
+            lon = parseFloat(coordsInput[1]);
+        }
+        if (isNaN(lat) || isNaN(lon)) return;
+
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=12&addressdetails=1`, {
+                headers: { 'Accept-Language': 'de' }
+            });
+            const data = await response.json();
+            if (data && data.address) {
+                const mountain = data.address.peak || data.address.mountain || data.address.alpine_hut || '';
+                const village = data.address.village || data.address.town || data.address.municipality || data.address.county || '';
+                const state = data.address.state || '';
+                
+                let textParts = [];
+                if (mountain) textParts.push(`Berg/Punkt: ${mountain}`);
+                if (village) textParts.push(village);
+                if (state) textParts.push(state);
+
+                document.getElementById('locationName').innerText = `📍 Erkanntes Gebiet: ${textParts.join(', ') || data.display_name}`;
+            }
+        } catch (e) {
+            document.getElementById('locationName').innerText = "📍 Region konnte nicht automatisch aufgelöst werden.";
+        }
+    }
+
+    function getGPSLocation() {
+        if (!navigator.geolocation) {
+            alert("Dein Browser unterstützt keine Geolocation.");
+            return;
+        }
+        const btn = document.querySelector('.gps-btn');
+        btn.innerText = "Suche...";
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude.toFixed(4);
+                const lon = position.coords.longitude.toFixed(4);
+                document.getElementById('coords').value = `${lat}, ${lon}`;
+                btn.innerText = "📍 GPS nutzen";
+                resolveLocationName(lat, lon);
+            },
+            (error) => {
+                alert("Standort konnte nicht ermittelt werden.");
+                btn.innerText = "📍 GPS nutzen";
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    }
+
+    async function analyzeRisk() {
+        const coordsInput = document.getElementById('coords').value.split(',');
+        const lat = parseFloat(coordsInput[0]);
+        const lon = parseFloat(coordsInput[1]);
+        const startTimeStr = document.getElementById('startTime').value;
+        const duration = parseInt(document.getElementById('duration').value);
+
+        if(isNaN(lat) || isNaN(lon) || !startTimeStr) {
+            alert('Bitte gültige Koordinaten oder GPS-Standort eingeben.');
+            return;
+        }
+
+        resolveLocationName(lat, lon);
+
+        document.getElementById('results').innerHTML = '<p style="text-align:center; color:#7f8c8d;">Lade Wettermodelle...</p>';
+        document.getElementById('offlineBanner').style.display = 'none';
+
+        const startDt = new Date(startTimeStr);
+        const startDateStr = startDt.toISOString().split('T')[0];
+        const startHour = startDt.getHours();
+
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,cape&start_date=${startDateStr}&end_date=${startDateStr}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Netzwerkfehler');
+            
+            const data = await response.json();
+            
+            localStorage.setItem('bergampel_weather', JSON.stringify(data));
+            localStorage.setItem('bergampel_time', new Date().toLocaleString());
+
+            processAndRender(data, startHour, duration);
+
+        } catch (err) {
+            const cachedData = localStorage.getItem('bergampel_weather');
+            if (cachedData) {
+                const cachedTime = localStorage.getItem('bergampel_time') || 'Unbekannt';
+                const banner = document.getElementById('offlineBanner');
+                banner.style.display = 'block';
+                banner.innerHTML = `⚠️ <strong>Kein Internet:</strong> Zeige automatisch die letzte gespeicherte Vorschau (Stand: ${cachedTime}).`;
+                
+                processAndRender(JSON.parse(cachedData), startHour, duration);
+            } else {
+                document.getElementById('results').innerHTML = `<p style="color:red;">Keine Internetverbindung und keine gespeicherten Wetterdaten vorhanden!</p>`;
+            }
+        }
+    }
+
+    function processAndRender(data, startHour, duration) {
+        const hourly = data.hourly;
+        const times = hourly.time;
+        const temps = hourly.temperature_2m;
+        const rains = hourly.precipitation;
+        const gusts = hourly.wind_gusts_10m;
+        const capes = hourly.cape || [];
+
+        let html = '<h3>Ampel-Risiko-Protokoll</h3>';
+        let slotsCount = 0;
+
+        for (let i = 0; i < duration; i++) {
+            let currentHourIndex = startHour + i;
+            if (currentHourIndex >= times.length) break;
+
+            let timeFormatted = times[currentHourIndex].replace('T', ' ');
+            let hourOnly = parseInt(times[currentHourIndex].split('T')[1].split(':')[0]);
+            let temp = temps[currentHourIndex];
+            let rain = rains[currentHourIndex];
+            let gust = gusts[currentHourIndex];
+            let cape = capes[currentHourIndex] || 0;
+
+            let risk = 'green';
+            let badgeText = 'STABIL (Grün)';
+            let reasons = [];
+
+            if (cape > 400 && hourOnly >= 12) {
+                risk = 'red';
+                reasons.push("Hohes Gewitterrisiko (Thermik) am Nachmittag!");
+            } else if (rain > 0.5) {
+                risk = (risk === 'red') ? 'red' : 'yellow';
+                reasons.push(`Niederschlag (${rain} mm)`);
+            }
+
+            if (gust > 50) {
+                risk = 'red';
+                reasons.push(`Sturmböen (${gust.toFixed(0)} km/h)`);
+            } else if (gust > 35) {
+                risk = (risk === 'red') ? 'red' : 'yellow';
+                reasons.push(`Frischer Wind (${gust.toFixed(0)} km/h)`);
+            }
+
+            if (reasons.length === 0) {
+                reasons.push("Wetterverhältnisse unauffällig.");
+            } else if (risk === 'yellow') {
+                badgeText = 'ACHTUNG (Gelb)';
+            } else if (risk === 'red') {
+                badgeText = 'KRITISCH (Rot)';
+            }
+
+            let cssClass = 'status-green';
+            if (risk === 'yellow') cssClass = 'status-yellow';
+            if (risk === 'red') cssClass = 'status-red';
+
+            html += `
+                <div class="slot ${cssClass}">
+                    <div>
+                        <strong>${timeFormatted}</strong><br>
+                        <small>Temp: ${temp}°C | Windböen: ${gust} km/h | Regen: ${rain} mm</small><br>
+                        <em>${reasons.join(' | ')}</em>
+                    </div>
+                    <div><span class="badge" style="background:rgba(0,0,0,0.08);">${badgeText}</span></div>
+                </div>
+            `;
+            slotsCount++;
+        }
+
+        if (slotsCount === 0) {
+            html += '<p>Keine Wetterdaten für diesen Zeitraum verfügbar.</p>';
+        }
+
+        document.getElementById('results').innerHTML = html;
+    }
+</script>
+</body>
+</html>
