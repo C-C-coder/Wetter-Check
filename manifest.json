@@ -1,0 +1,8 @@
+  "name": "Bergtouren Wetter Ampel",
+  "short_name": "Wetter-Ampel",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1e3c72",
+  "theme_color": "#1e3c72",
+  "icons": [{ "src": "logo.svg", "sizes": "500x500", "type": "image/svg+xml" }]
+}

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bergtouren Wetter Ampel</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root { --primary: #2c3e50; --accent: #27ae60; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: #333; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 500px; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 25px; }
+        .logo-container { width: 110px; height: 110px; margin: 0 auto 15px auto; }
+        .logo-container svg { width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        h1 { color: var(--primary); font-size: 22px; margin: 0; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; color: #555; }
+        .row { display: flex; gap: 10px; }
+        input { width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 12px; font-size: 15px; transition: border 0.3s; box-sizing: border-box; }
+        input:focus { border-color: var(--accent); outline: none; }
+        .gps-btn { background: #3498db; color: white; border: none; padding: 12px 15px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 16px; }
+        .main-btn { background: var(--accent); color: white; border: none; padding: 15px; width: 100%; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
+        .main-btn:active { transform: scale(0.98); }
+        #results { margin-top: 25px; }
+        .slot { padding: 15px; margin-bottom: 12px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #eee; }
+        .status-green { border-left: 6px solid #2ecc71; }
+        .status-yellow { border-left: 6px solid #f1c40f; }
+        .status-red { border-left: 6px solid #e74c3c; }
+        .meta-info { margin-top: 25px; font-size: 11px; color: #999; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <!-- Direkt eingebautes Logo -->
+        <div class="logo-container">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+              <defs>
+                <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#1e3c72" />
+                  <stop offset="100%" stop-color="#2a5298" />
+                </linearGradient>
+              </defs>
+              <circle cx="250" cy="250" r="250" fill="url(#skyGrad)" />
+              <polygon points="60,370 200,190 340,370" fill="#7f8c8d" opacity="0.5" />
+              <polygon points="140,370 250,160 360,370" fill="#bdc3c7" opacity="0.8" />
+              <polygon points="190,370 300,220 430,370" fill="#ecf0f1" />
+              <polygon points="265,295 300,220 325,270" fill="#bdc3c7" />
+              <circle cx="350" cy="130" r="14" fill="#e74c3c" />
+              <circle cx="350" cy="165" r="14" fill="#f1c40f" />
+              <circle cx="350" cy="200" r="16" fill="#2ecc71" />
+              <circle cx="350" cy="165" r="55" fill="none" stroke="white" stroke-width="4" opacity="0.3" />
+              <text x="250" y="415" font-family="sans-serif" font-size="28" font-weight="bold" fill="white" text-anchor="middle" letter-spacing="1">BERG TOUREN</text>
+              <text x="250" y="445" font-family="sans-serif" font-size="22" font-weight="bold" fill="#2ecc71" text-anchor="middle" letter-spacing="2">WETTER AMPEL</text>
+            </svg>
+        </div>
+        <h1>Bergtouren Wetter Ampel</h1>
+    </div>
+    
+    <div class="form-group">
+        <label>Koordinaten (Breite, Länge):</label>
+        <div class="row">
+            <input type="text" id="lat" placeholder="Breite (z.B. 47.47)">
+            <input type="text" id="lon" placeholder="Länge (z.B. 13.61)">
+            <button class="gps-btn" onclick="getGPS()">📍</button>
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label>Startzeit:</label>
+        <input type="datetime-local" id="startTime">
+    </div>
+
+    <button class="main-btn" onclick="analyzeRisk()">Risiko analysieren</button>
+    <div id="results"></div>
+</div>
+
+<script>
+    document.getElementById('startTime').value = new Date().toISOString().slice(0,16);
+    function getGPS() {
+        navigator.geolocation.getCurrentPosition(p => {
+            document.getElementById('lat').value = p.coords.latitude.toFixed(4);
+            document.getElementById('lon').value = p.coords.longitude.toFixed(4);
+        });
+    }
+    async function analyzeRisk() {
+        const lat = document.getElementById('lat').value;
+        const lon = document.getElementById('lon').value;
+        const date = document.getElementById('startTime').value.split('T')[0];
+        const hour = parseInt(document.getElementById('startTime').value.split('T')[1]);
+        
+        if(!lat || !lon) {
+            alert("Bitte Koordinaten eingeben oder GPS nutzen.");
+            return;
+        }
+
+        document.getElementById('results').innerHTML = '<p style="text-align:center;">Analysiere...</p>';
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_gusts_10m&start_date=${date}&end_date=${date}`;
+
+        try {
+            const data = await (await fetch(url)).json();
+            let html = '';
+            for(let i = hour; i < hour + 6; i++) {
+                const gust = data.hourly.wind_gusts_10m[i];
+                const status = gust > 50 ? 'red' : (gust > 35 ? 'yellow' : 'green');
+                html += `<div class="slot status-${status}"><span>${i}:00 Uhr</span> <strong>${gust} km/h Böen</strong></div>`;
+            }
+            html += `<div class="meta-info">Daten: Open-Meteo.com | Update: ${new Date().toLocaleTimeString()}</div>`;
+            document.getElementById('results').innerHTML = html;
+        } catch(e) { document.getElementById('results').innerHTML = "Fehler beim Laden der Daten."; }
+    }
+</script>
+</body>
+</html>
