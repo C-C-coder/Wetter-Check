@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Moderner Farbverlauf für den Himmel -->
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e3c72" />
+      <stop offset="100%" stop-color="#2a5298" />
+    </linearGradient>
+  </defs>
+
+  <!-- Runder App-Hintergrund -->
+  <circle cx="250" cy="250" r="230" fill="url(#skyGrad)" />
+  
+  <!-- Stylische Bergkette (Hintergrund & Vordergrund) -->
+  <polygon points="60,370 200,190 340,370" fill="#7f8c8d" opacity="0.5" />
+  <polygon points="140,370 250,160 360,370" fill="#bdc3c7" opacity="0.8" />
+  <polygon points="190,370 300,220 430,370" fill="#ecf0f1" />
+  
+  <!-- Schattenwurf am Hauptberg -->
+  <polygon points="265,295 300,220 325,270" fill="#bdc3c7" />
+
+  <!-- Die Wetter-Ampel (Sonne & Risiko-Indikator am Himmel) -->
+  <!-- Roter Bereich -->
+  <circle cx="350" cy="130" r="14" fill="#e74c3c" />
+  <!-- Gelber Bereich -->
+  <circle cx="350" cy="165" r="14" fill="#f1c40f" />
+  <!-- Grüner Bereich (leuchtend hervorgehoben als Startsignal) -->
+  <circle cx="350" cy="200" r="16" fill="#2ecc71" />
+  <!-- Äußerer Glanzkreis um die Ampel -->
+  <circle cx="350" cy="165" r="55" fill="none" stroke="white" stroke-width="4" opacity="0.3" />
+
+  <!-- App-Titel im unteren Bereich -->
+  <text x="250" y="415" font-family="-apple-system, sans-serif" font-size="28" font-weight="bold" fill="white" text-anchor="middle" letter-spacing="1">BERG TOUREN</text>
+  <text x="250" y="445" font-family="-apple-system, sans-serif" font-size="22" font-weight="bold" fill="#2ecc71" text-anchor="middle" letter-spacing="2">WETTER AMPEL</text>
+</svg>
