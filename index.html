@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bergtouren Wetter Ampel</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="icon" href="logo.png" type="image/png">
+<style>
+:root { --primary: #1e293b; --accent: #10b981; --accent-hover: #059669; --bg: #f8fafc; --card-bg: #ffffff; --border: #e2e8f0; --text: #334155; --text-light: #64748b; }
+body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; display: flex; justify-content: center; }
+.container { width: 100%; max-width: 520px; background: var(--card-bg); padding: 22px; border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); }
+.header { text-align: center; margin-bottom: 20px; }
+.logo-img { width: 80px; height: 80px; margin-bottom: 10px; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+h1 { color: var(--primary); font-size: 20px; margin: 0; font-weight: 700; }
+.card-section { background: #f8fafc; border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 16px; transition: all 0.2s ease; }
+.card-section:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(16,185,129,0.1); }
+label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 13px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
+.row { display: flex; gap: 8px; }
+input, select { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; font-size: 14px; background: #fff; color: var(--text); box-sizing: border-box; transition: all 0.2s; }
+input:focus, select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(16,185,129,0.15); }
+.action-btn { background: #3b82f6; color: white; border: none; padding: 0 16px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap; transition: background 0.2s; }
+.action-btn:hover { background: #2563eb; }
+.fav-bar { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.main-btn { background: var(--accent); color: white; border: none; padding: 14px; width: 100%; border-radius: 14px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(16,185,129,0.2); }
+.main-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.main-btn:active { transform: translateY(0); }
+#results { margin-top: 20px; }
+.slot { padding: 14px; margin-bottom: 10px; border-radius: 12px; font-size: 13px; }
+.status-green { background: #ecfdf5; border-left: 5px solid #10b981; color: #065f46; }
+.status-yellow { background: #fffbeb; border-left: 5px solid #f59e0b; color: #78350f; }
+.status-red { background: #fef2f2; border-left: 5px solid #ef4444; color: #7f1d1d; }
+.badge { font-weight: 700; padding: 4px 8px; border-radius: 6px; font-size: 11px; white-space: nowrap; background: rgba(0,0,0,0.06); }
+.location-title { font-weight: 700; color: var(--primary); margin-bottom: 8px; font-size: 15px; }
+.detected-location { font-size: 12px; color: #3b82f6; margin-top: 6px; font-weight: 600; }
+.warning-box { background: #fff5f5; border: 1px solid #fecaca; color: #991b1b; padding: 14px; border-radius: 12px; margin-bottom: 12px; font-size: 13px; line-height: 1.5; }
+.info-box { background: #f1f5f9; border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; color: var(--text); display: flex; justify-content: space-between; align-items: center; }
+.info-box-link { text-decoration: none; color: inherit; display: block; transition: transform 0.1s; }
+.info-box-link:hover .info-box { background: #e2e8f0; border-color: #cbd5e1; }
+.share-btn { background: #25d366; color: white; border: none; padding: 12px; width: 100%; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
+.share-btn:hover { background: #20ba5a; }
+.meta-info { margin-top: 20px; font-size: 11px; color: var(--text-light); text-align: center; border-top: 1px solid var(--border); padding-top: 10px; }
+.footer-copyright { text-align: center; font-size: 11px; color: var(--text-light); margin-top: 24px; border-top: 1px solid var(--border); padding-top: 12px; }
+#locationResultsSelect { display: none; margin-top: 8px; background: #f8fafc; border: 1px solid #3b82f6; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<img src="logo.png" class="logo-img" alt="Logo">
+<h1>Bergtouren Wetter Ampel</h1>
+</div>
+<div class="card-section">
+<label>Ort suchen:</label>
+<div class="row">
+<input type="text" id="locationSearch" placeholder="z.B. Puchberg, Reichenau, Maiersdorf" oninput="clearCoordsIfSearching()">
+<button type="button" class="action-btn" onclick="searchLocation()">Suchen</button>
+</div>
+<div class="fav-bar">
+<select id="favoritesDropdown" onchange="loadFavoriteFromDropdown()" style="font-size: 12px; padding: 8px;">
+<option value="">⭐ Favoriten wählen...</option>
+</select>
+<button type="button" class="action-btn" onclick="saveCurrentAsFavorite()" style="background: #10b981; font-size: 12px; padding: 8px 12px;">+ Als Favorit speichern</button>
+</div>
+<select id="locationResultsSelect" onchange="selectLocationFromDropdown()">
+<option value="">-- Bitte Ort auswählen --</option>
+</select>
+<div id="locationPreview" class="detected-location"></div>
+</div>
+<div class="card-section">
+<label>Oder Koordinaten (Breite, Länge):</label>
+<div class="row" style="margin-bottom: 8px;">
+<input type="text" id="lat" placeholder="Breite (z.B. 47.7800)" oninput="clearSearchInput()">
+<input type="text" id="lon" placeholder="Länge (z.B. 15.8900)" oninput="clearSearchInput()">
+</div>
+<button type="button" class="action-btn" onclick="getGPS()" style="width: 100%; padding: 10px; background: #64748b;">📍 Aktueller Standort</button>
+</div>
+<div class="card-section">
+<label>⛰️ Gipfel-Höhenmeter (optional):</label>
+<input type="number" id="peakAltInput" placeholder="z.B. 2076 (für Gipfel-Wetter)" oninput="saveState()" style="font-size: 13px;">
+<small style="display: block; margin-top: 6px; color: var(--text-light); font-size: 11px;">Hinweis: Gipfel-Wetter wird nur angezeigt, wenn hier eine Höhe eingegeben wird.</small>
+</div>
+<div class="card-section">
+<div class="form-group" style="margin-bottom: 12px;">
+<label style="display: flex; justify-content: space-between; align-items: center;">
+<span>⏱️ Geplante Startzeit:</span>
+<button type="button" onclick="setNowTime()" style="background: #e2e8f0; color: var(--text); border: none; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;">🕒 Jetzt</button>
+</label>
+<input type="datetime-local" id="startTime" onchange="saveState()">
+</div>
+<div class="form-group" style="margin-bottom: 0;">
+<label>🥾 Geplante Tourendauer:</label>
+<select id="duration" onchange="saveState()">
+<option value="4">4 Stunden (Halbtag)</option>
+<option value="6" selected>6 Stunden (Normal)</option>
+<option value="8">8 Stunden (Tagestour)</option>
+<option value="10">10 Stunden (Lange Tour)</option>
+</select>
+</div>
+</div>
+<button class="main-btn" onclick="analyzeRisk()">Wetter abfragen</button>
+<div id="results"></div>
+<div class="footer-copyright">&copy; 2026 Christian Camus. Alle Rechte vorbehalten.</div>
+</div>
+<script>
+let foundLocations = [];
+let savedFavorites = JSON.parse(localStorage.getItem('bt_favorites') || '[]');
+let lastCoordLat = null;
+let lastCoordLon = null;
+
+function getDistance(lat1, lon1, lat2, lon2) {
+const R = 6371;
+const dLat = (lat2 - lat1) * Math.PI / 180;
+const dLon = (lon2 - lon1) * Math.PI / 180;
+const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function checkAndResetElevation(newLat, newLon) {
+if (lastCoordLat !== null && lastCoordLon !== null) {
+if (getDistance(lastCoordLat, lastCoordLon, newLat, newLon) > 20) {
+document.getElementById('peakAltInput').value = "";
+localStorage.removeItem('bt_alt');
+}
+}
+lastCoordLat = newLat;
+lastCoordLon = newLon;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+updateFavoritesDropdown();
+
+const urlParams = new URLSearchParams(window.location.search);
+const pLat = urlParams.get('lat');
+const pLon = urlParams.get('lon');
+const pSearch = urlParams.get('search');
+const pStart = urlParams.get('start');
+const pDuration = urlParams.get('duration');
+const pAlt = urlParams.get('alt');
+
+if (pLat && pLon) {
+document.getElementById('lat').value = pLat;
+document.getElementById('lon').value = pLon;
+lastCoordLat = parseFloat(pLat);
+lastCoordLon = parseFloat(pLon);
+if (pAlt && pAlt !== "null" && pAlt !== "") {
+document.getElementById('peakAltInput').value = pAlt;
+}
+if (pSearch) {
+document.getElementById('locationSearch').value = decodeURIComponent(pSearch);
+document.getElementById('locationPreview').innerText = `📍 Geteiltes Ziel: ${decodeURIComponent(pSearch)}`;
+}
+if (pStart) document.getElementById('startTime').value = pStart;
+if (pDuration) document.getElementById('duration').value = pDuration;
+saveState();
+analyzeRisk();
+return;
+}
+
+const savedSearch = localStorage.getItem('bt_search');
+const savedLat = localStorage.getItem('bt_lat');
+const savedLon = localStorage.getItem('bt_lon');
+const savedStart = localStorage.getItem('bt_start');
+const savedDuration = localStorage.getItem('bt_duration');
+const savedPreview = localStorage.getItem('bt_preview');
+const savedAlt = localStorage.getItem('bt_alt');
+
+if (savedSearch) document.getElementById('locationSearch').value = savedSearch;
+if (savedLat) {
+document.getElementById('lat').value = savedLat;
+lastCoordLat = parseFloat(savedLat);
+}
+if (savedLon) {
+document.getElementById('lon').value = savedLon;
+lastCoordLon = parseFloat(savedLon);
+}
+if (savedAlt && savedAlt !== "null" && savedAlt !== "") {
+document.getElementById('peakAltInput').value = savedAlt;
+}
+if (savedStart) {
+document.getElementById('startTime').value = savedStart;
+}
+if (!document.getElementById('startTime').value) {
+setNowTime();
+}
+if (savedDuration) document.getElementById('duration').value = savedDuration;
+if (savedPreview) document.getElementById('locationPreview').innerText = savedPreview;
+
+if ('serviceWorker' in navigator) {
+navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+});
+
+function updateFavoritesDropdown() {
+const dropdown = document.getElementById('favoritesDropdown');
+dropdown.innerHTML = '<option value="">⭐ Favoriten wählen...</option>';
+savedFavorites.forEach((fav, index) => {
+const opt = document.createElement('option');
+opt.value = index;
+opt.text = fav.name;
+dropdown.appendChild(opt);
+});
+}
+
+async function saveCurrentAsFavorite() {
+const name = document.getElementById('locationSearch').value.trim();
+const lat = document.getElementById('lat').value.trim();
+const lon = document.getElementById('lon').value.trim();
+const preview = document.getElementById('locationPreview').innerText;
+const peakAlt = document.getElementById('peakAltInput').value.trim();
+
+if (!name || !lat || !lon) {
+alert("Bitte zuerst einen Ort suchen oder Koordinaten eingeben, um ihn als Favorit zu speichern.");
+return;
+}
+
+const favData = { name, lat, lon, preview, peakAlt };
+const index = savedFavorites.findIndex(f => f.name === name);
+
+if (index > -1) {
+savedFavorites[index] = favData;
+} else {
+savedFavorites.push(favData);
+}
+
+localStorage.setItem('bt_favorites', JSON.stringify(savedFavorites));
+updateFavoritesDropdown();
+alert(`"${name}" wurde zu den Favoriten hinzugefügt!`);
+}
+
+function loadFavoriteFromDropdown() {
+const dropdown = document.getElementById('favoritesDropdown');
+const index = dropdown.value;
+if (index === "") return;
+
+const fav = savedFavorites[index];
+document.getElementById('locationSearch').value = fav.name;
+document.getElementById('lat').value = fav.lat;
+document.getElementById('lon').value = fav.lon;
+
+if (fav.peakAlt) {
+document.getElementById('peakAltInput').value = fav.peakAlt;
+} else {
+document.getElementById('peakAltInput').value = "";
+}
+
+document.getElementById('locationPreview').innerText = fav.preview || `⭐ Favorit: ${fav.name}`;
+document.getElementById('locationResultsSelect').style.display = "none";
+
+lastCoordLat = parseFloat(fav.lat);
+lastCoordLon = parseFloat(fav.lon);
+
+saveState();
+dropdown.value = "";
+}
+
+function setNowTime() {
+const now = new Date();
+const localIso = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+document.getElementById('startTime').value = localIso;
+saveState();
+}
+
+function saveState() {
+localStorage.setItem('bt_search', document.getElementById('locationSearch').value);
+localStorage.setItem('bt_lat', document.getElementById('lat').value);
+localStorage.setItem('bt_lon', document.getElementById('lon').value);
+localStorage.setItem('bt_start', document.getElementById('startTime').value);
+localStorage.setItem('bt_duration', document.getElementById('duration').value);
+localStorage.setItem('bt_preview', document.getElementById('locationPreview').innerText);
+localStorage.setItem('bt_alt', document.getElementById('peakAltInput').value);
+}
+
+function clearSearchInput() {
+document.getElementById('locationSearch').value = "";
+document.getElementById('locationResultsSelect').style.display = "none";
+saveState();
+}
+
+function clearCoordsIfSearching() {
+document.getElementById('lat').value = "";
+document.getElementById('lon').value = "";
+document.getElementById('locationPreview').innerText = "";
+saveState();
+}
+
+async function searchLocation() {
+const query = document.getElementById('locationSearch').value.trim();
+const selectBox = document.getElementById('locationResultsSelect');
+if (!query) {
+alert("Bitte einen Ortsnamen eingeben.");
+return;
+}
+document.getElementById('locationPreview').innerText = "Suche Orte...";
+selectBox.style.display = "none";
+selectBox.innerHTML = '<option value="">-- Bitte Ort auswählen --</option>';
+try {
+const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=de`);
+const data = await res.json();
+if (data.results && data.results.length > 0) {
+foundLocations = data.results;
+if (foundLocations.length === 1) {
+setCoordinates(foundLocations[0]);
+} else {
+foundLocations.forEach((place, index) => {
+const opt = document.createElement('option');
+opt.value = index;
+const regionParts = [place.admin1, place.country].filter(Boolean).join(', ');
+opt.text = `${place.name} (${regionParts}) [${place.latitude.toFixed(2)}, ${place.longitude.toFixed(2)}]`;
+selectBox.appendChild(opt);
+});
+selectBox.style.display = "block";
+document.getElementById('locationPreview').innerText = "🔍 Mehrere Treffer gefunden. Bitte wähle den richtigen Ort aus:";
+}
+} else {
+document.getElementById('locationPreview').innerText = "❌ Kein Ort gefunden. Bitte genauer eingeben.";
+}
+saveState();
+} catch(e) {
+document.getElementById('locationPreview').innerText = "❌ Fehler bei der Ortssuche.";
+}
+}
+
+async function selectLocationFromDropdown() {
+const selectBox = document.getElementById('locationResultsSelect');
+const index = selectBox.value;
+if (index !== "" && foundLocations[index]) {
+setCoordinates(foundLocations[index]);
+selectBox.style.display = "none";
+}
+}
+
+async function setCoordinates(place) {
+const lat = parseFloat(place.latitude);
+const lon = parseFloat(place.longitude);
+
+checkAndResetElevation(lat, lon);
+
+document.getElementById('lat').value = lat.toFixed(4);
+document.getElementById('lon').value = lon.toFixed(4);
+
+const regionParts = [place.admin1, place.country].filter(Boolean).join(', ');
+document.getElementById('locationPreview').innerText = `📍 Ausgewählt: ${place.name} (${regionParts})`;
+saveState();
+}
+
+async function getGPS() {
+if (!navigator.geolocation) {
+alert("GPS wird vom Browser nicht unterstützt.");
+return;
+}
+document.getElementById('locationSearch').value = "";
+document.getElementById('locationResultsSelect').style.display = "none";
+navigator.geolocation.getCurrentPosition(async (p) => {
+const lat = parseFloat(p.coords.latitude);
+const lon = parseFloat(p.coords.longitude);
+
+checkAndResetElevation(lat, lon);
+
+document.getElementById('lat').value = lat.toFixed(4);
+document.getElementById('lon').value = lon.toFixed(4);
+document.getElementById('locationPreview').innerText = "Ermittle Ortsname...";
+const placeName = await fetchLocationName(lat, lon);
+document.getElementById('locationPreview').innerText = `📍 GPS: ${placeName} [${lat.toFixed(4)}, ${lon.toFixed(4)}]`;
+saveState();
+}, () => {
+alert("Standort konnte nicht ermittelt werden.");
+}, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+async function fetchLocationName(lat, lon) {
+try {
+const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=12&addressdetails=1`, {
+headers: { 'Accept-Language': 'de' }
+});
+const data = await res.json();
+if (data && data.address) {
+const addr = data.address;
+const name = addr.village || addr.town || addr.city || addr.municipality || addr.county || addr.suburb || "";
+const region = addr.state || addr.region || "";
+if (name && region) return `${name} (${region})`;
+if (name) return name;
+if (region) return region;
+}
+} catch(e) {}
+return `Position (${lat}, ${lon})`;
+}
+
+function getSunTimes(dateStr) {
+const d = new Date(dateStr);
+const month = d.getMonth() + 1;
+let sunrise = "06:45";
+let sunset = "18:00";
+
+if (month === 12) { sunrise = "07:45"; sunset = "16:15"; }
+else if (month === 1 || month === 11) { sunrise = "07:30"; sunset = "16:45"; }
+else if (month === 2) { sunrise = "07:00"; sunset = "17:30"; }
+else if (month === 3 || month === 10) { sunrise = "06:30"; sunset = "18:30"; }
+else if (month === 4 || month === 9) { sunrise = "06:15"; sunset = "19:45"; }
+else if (month === 5 || month === 8) { sunrise = "05:30"; sunset = "20:30"; }
+else if (month >= 6 && month <= 7) { sunrise = "05:00"; sunset = "21:15"; }
+
+return { sunrise, sunset };
+}
+
+async function triggerShare() {
+const lat = document.getElementById('lat').value;
+const lon = document.getElementById('lon').value;
+const search = document.getElementById('locationSearch').value;
+const start = document.getElementById('startTime').value;
+const duration = document.getElementById('duration').value;
+const peakAlt = document.getElementById('peakAltInput').value;
+
+const baseUrl = window.location.origin + window.location.pathname;
+const shareUrl = `${baseUrl}?lat=${lat}&lon=${lon}&search=${encodeURIComponent(search)}&start=${encodeURIComponent(start)}&duration=${duration}&alt=${peakAlt}`;
+
+const shareMessage = `🏔️ Bergtouren Wetter-Check für ${search || 'unsere Tour'}!\nKlicke hier, um die Wetter-Ampel mit diesen aktuellen Einstellungen direkt zu öffnen:\n${shareUrl}`;
+
+if (navigator.share) {
+try {
+await navigator.share({
+title: 'Bergtouren Wetter-Check',
+text: shareMessage
+});
+} catch(e) {}
+} else {
+const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`;
+window.open(whatsappUrl, '_blank');
+}
+}
+async function analyzeRisk() {
+let lat = document.getElementById('lat').value.trim();
+let lon = document.getElementById('lon').value.trim();
+const query = document.getElementById('locationSearch').value.trim();
+if ((!lat || !lon) && query && document.getElementById('locationResultsSelect').style.display === "none") {
+await searchLocation();
+lat = document.getElementById('lat').value.trim();
+lon = document.getElementById('lon').value.trim();
+}
+const startTimeStr = document.getElementById('startTime').value;
+const duration = parseInt(document.getElementById('duration').value);
+const manualPeak = document.getElementById('peakAltInput').value.trim();
+
+if(!lat || !lon || !startTimeStr) {
+alert("Bitte gib einen Ort oder Koordinaten sowie die Startzeit ein.");
+return;
+}
+
+saveState();
+document.getElementById('results').innerHTML = '<p style="text-align:center; color:#64748b;">Ermittle hochauflösende Wetterdaten (ICON-D2)...</p>';
+document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+
+const [datePart, timePart] = startTimeStr.split('T');
+let startHour = parseInt(timePart.split(':')[0]);
+let startMinute = parseInt(timePart.split(':')[1]);
+if (startMinute >= 30) {
+startHour += 1;
+}
+const startDt = new Date(datePart + 'T' + String(startHour).padStart(2, '0') + ':00:00');
+const endDt = new Date(startDt.getTime() + (duration + 2) * 3600 * 1000);
+const startDateStr = datePart;
+const endDateStr = endDt.toISOString().split('T')[0];
+const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,wind_gusts_10m,cape&start_date=${startDateStr}&end_date=${endDateStr}&models=icon_d2&timezone=auto`;
+try {
+const [weatherRes, locationName, elRes] = await Promise.all([
+fetch(weatherUrl),
+fetchLocationName(parseFloat(lat), parseFloat(lon)),
+fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`)
+]);
+const data = await weatherRes.json();
+const elData = await elRes.json();
+const baseElevation = (elData && elData.elevation && elData.elevation.length > 0) ? Math.round(elData.elevation[0]) : 600;
+
+const hourly = data.hourly;
+const targetString = `${startDateStr}T${String(startHour).padStart(2, '0')}:00`;
+let startIndex = hourly.time.findIndex(t => t.startsWith(targetString));
+if (startIndex === -1) startIndex = 0;
+
+function getRiskForValues(rain, gust, cape, hourOnly) {
+if ((cape > 500 && hourOnly >= 12) || gust > 75) return 'red';
+if (rain > 0 || gust > 55) return 'yellow';
+return 'green';
+}
+
+let html = `<div class="location-title">📍 Ziel: ${locationName}</div>`;
+
+const sunTimes = getSunTimes(startDateStr);
+html += `
+<div class="info-box">
+<span>🌅 Aufgang: <strong>${sunTimes.sunrise}</strong> | 🌇 Untergang: <strong>${sunTimes.sunset}</strong></span>
+</div>
+`;
+
+html += `
+<a href="https://lawinen.at/" target="_blank" class="info-box-link">
+<div class="info-box">
+<span>🏔️ Übersicht Lawinensituation</span>
+<span style="font-weight: 700; color: #3b82f6;">lawinen.at ↗</span>
+</div>
+</a>
+`;
+
+html += `
+<a href="https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&zoom=9&level=surface&overlay=rain&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default" target="_blank" class="info-box-link">
+<div class="info-box">
+<span>🌧️ Live Regenradar & Windkarte</span>
+<span style="font-weight: 700; color: #3b82f6;">Windy Radar ↗</span>
+</div>
+</a>
+`;
+
+let warningsList = [];
+let slotsHtml = '';
+let slotsCount = 0;
+let hasRainOrDrizzle = false;
+let hasThunderstormRisk = false;
+
+const hasPeak = manualPeak !== "" && !isNaN(parseInt(manualPeak));
+const peakAlt = hasPeak ? parseInt(manualPeak) : baseElevation;
+const valleyAlt = Math.max(200, baseElevation - 600);
+
+for (let i = 0; i < duration; i++) {
+let currentHourIndex = startIndex + i;
+if (currentHourIndex >= hourly.time.length) break;
+let timeFormatted = hourly.time[currentHourIndex].replace('T', ' ');
+let hourOnly = parseInt(hourly.time[currentHourIndex].split('T')[1].split(':')[0]);
+let rawTemp = hourly.temperature_2m[currentHourIndex];
+let rain = hourly.precipitation[currentHourIndex];
+let gust = hourly.wind_gusts_10m[currentHourIndex];
+let cape = hourly.cape ? hourly.cape[currentHourIndex] : 0;
+
+if (rain > 0) hasRainOrDrizzle = true;
+if (cape > 500 && hourOnly >= 12) hasThunderstormRisk = true;
+
+let risk = getRiskForValues(rain, gust, cape, hourOnly);
+let badgeText = risk === 'red' ? 'KRITISCH' : (risk === 'yellow' ? 'ACHTUNG' : 'STABIL');
+let cssClass = 'status-green';
+if (risk === 'yellow') cssClass = 'status-yellow';
+if (risk === 'red') cssClass = 'status-red';
+
+if (hasPeak) {
+let tempValley = (rawTemp + ((baseElevation - valleyAlt) / 100 * 0.65)).toFixed(1);
+let tempPeak = (rawTemp - ((peakAlt - baseElevation) / 100 * 0.65)).toFixed(1);
+let gustValley = Math.round(gust * 0.8);
+let gustPeak = Math.round(gust * 1.25);
+
+let riskValley = getRiskForValues(rain, gustValley, cape, hourOnly);
+let riskPeak = getRiskForValues(rain, gustPeak, cape, hourOnly);
+
+let badgePeak = riskPeak === 'red' ? 'KRITISCH' : (riskPeak === 'yellow' ? 'ACHTUNG' : 'STABIL');
+
+cssClass = 'status-green';
+if (riskValley === 'yellow' || riskPeak === 'yellow') cssClass = 'status-yellow';
+if (riskValley === 'red' || riskPeak === 'red') cssClass = 'status-red';
+
+slotsHtml += `
+<div class="slot ${cssClass}" style="margin-bottom: 10px;">
+<div style="font-weight:700; margin-bottom: 6px; border-bottom: 1px solid rgba(0,0,0,0.08); padding-bottom: 4px;">⏱️ ${timeFormatted}</div>
+<div style="display: flex; justify-content: space-between; gap: 10px;">
+<div style="flex: 1;">
+<strong>🌿 Tal (~${valleyAlt}m):</strong><br>
+<small>Temp: ${tempValley}°C | Böen: ${gustValley} km/h</small>
+</div>
+<div style="flex: 1; border-left: 1px solid rgba(0,0,0,0.08); padding-left: 8px;">
+<strong>⛰️ Gipfel (~${peakAlt}m):</strong><br>
+<small>Temp: ${tempPeak}°C | Böen: ${gustPeak} km/h</small>
+</div>
+</div>
+<div style="margin-top: 6px; font-size: 11px; display: flex; justify-content: space-between; align-items: center;">
+<span>Regen: ${rain} mm | ${rain > 0 ? 'Nässe/Schauer' : 'Unauffällig'}</span>
+<span class="badge">Gipfel: ${badgePeak}</span>
+</div>
+</div>
+`;
+} else {
+let temp = (rawTemp).toFixed(1);
+let reasons = [];
+if (cape > 500 && hourOnly >= 12) reasons.push("Starkes Gewitterrisiko!");
+else if (rain > 0) reasons.push(`Regen (${rain} mm)`);
+if (gust > 75) reasons.push(`Sturmböen (${Math.round(gust)} km/h)`);
+else if (gust > 55) reasons.push(`Starker Wind (${Math.round(gust)} km/h)`);
+if (reasons.length === 0) reasons.push("Wetterverhältnisse unauffällig.");
+
+slotsHtml += `
+<div class="slot ${cssClass}">
+<div>
+<strong>${timeFormatted}</strong><br>
+<small>Temp: ${temp}°C | Böen: ${Math.round(gust)} km/h | Regen: ${rain} mm</small><br>
+<em>${reasons.join(' | ')}</em>
+</div>
+<div><span class="badge">${badgeText}</span></div>
+</div>
+`;
+}
+slotsCount++;
+}
+
+if (hasThunderstormRisk) {
+warningsList.push("⚡ Gewittergefahr: Extremes Risiko für Blitzeinschläge und Sturmböen in höheren Lagen (Grate, Gipfel) – akute Lebensgefahr!");
+}
+if (hasRainOrDrizzle) {
+warningsList.push("⚠️ Rutschgefahr: Nässe am Felsen macht Steige anspruchsvoller.");
+}
+
+if (warningsList.length > 0) {
+html += `
+<div class="warning-box">
+${warningsList.join('<br><br>')}
+</div>
+`;
+}
+
+html += slotsHtml;
+
+if (slotsCount > 0) {
+html += `
+<button type="button" class="share-btn" onclick="triggerShare()">
+🔗 Link mit aktuellen Tour-Einstellungen teilen
+</button>
+<div class="meta-info" style="margin-top: 15px;">
+Datenquelle: DWD ICON-D2 & OpenStreetMap<br>
+Aktualisiert: ${new Date().toLocaleTimeString('de-DE')}
+</div>
+`;
+} else {
+html += '<p>Keine Wetterdaten für diesen Zeitraum verfügbar.</p>';
+}
+document.getElementById('results').innerHTML = html;
+document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+} catch(e) {
+document.getElementById('results').innerHTML = `<p style="color:red; text-align:center;">Fehler beim Laden der Wetterdaten.</p>`;
+}
+}
+</script>
+</body>
+</html>
