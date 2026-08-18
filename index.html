@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bergtouren Wetter Ampel</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="icon" href="logo.png" type="image/png">
+<style>
+:root { --primary: #1e293b; --accent: #10b981; --accent-hover: #059669; --bg: #f8fafc; --card-bg: #ffffff; --border: #e2e8f0; --text: #334155; --text-light: #64748b; }
+body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; display: flex; justify-content: center; }
+.container { width: 100%; max-width: 520px; background: var(--card-bg); padding: 20px; border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); }
+.header { text-align: center; margin-bottom: 16px; }
+.logo-img { width: 80px; height: 80px; margin-bottom: 10px; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+h1 { color: var(--primary); font-size: 20px; margin: 0; font-weight: 700; }
+.card-section { background: #f8fafc; border: 1px solid var(--border); border-radius: 16px; padding: 15px; margin-bottom: 12px; transition: all 0.2s ease; }
+.card-section:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(16,185,129,0.1); }
+label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 13px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
+.row { display: flex; gap: 8px; }
+input, select { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; font-size: 14px; background: #fff; color: var(--text); box-sizing: border-box; transition: all 0.2s; }
+input:focus, select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(16,185,129,0.15); }
+button, .link-button { cursor: pointer; font-weight: 600; border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.25); transition: all 0.15s ease; }
+button:hover, .link-button:hover { transform: translateY(-2px); box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.15), 0 3px 6px -1px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.action-btn { background: #3b82f6; color: white; padding: 0 16px; font-size: 13px; white-space: nowrap; }
+.action-btn:hover { background: #2563eb; }
+.fav-bar { display: flex; gap: 6px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+.main-btn { background: var(--accent); color: white; padding: 14px; width: 100%; border-radius: 14px; font-size: 15px; font-weight: 700; margin-top: 5px; }
+.main-btn:hover { background: var(--accent-hover); }
+#results { margin-top: 20px; }
+.slot { padding: 14px; margin-bottom: 12px; border-radius: 12px; font-size: 13px; }
+.status-green { background: #ecfdf5; border-left: 5px solid #10b981; color: #065f46; }
+.status-orange { background: #fff7ed; border-left: 5px solid #f59e0b; color: #9a3412; }
+.status-red { background: #fef2f2; border-left: 5px solid #ef4444; color: #7f1d1d; }
+.weather-split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; background: rgba(255,255,255,0.6); padding: 8px; border-radius: 8px; }
+.weather-box-title { font-weight: 700; font-size: 11px; text-transform: uppercase; margin-bottom: 4px; color: var(--primary); }
+.badge { font-weight: 700; padding: 4px 8px; border-radius: 6px; font-size: 11px; white-space: nowrap; background: rgba(0,0,0,0.06); }
+.location-title { font-weight: 700; color: var(--primary); margin-bottom: 8px; font-size: 16px; }
+.tour-specs-header { background: #f1f5f9; border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 12px; font-size: 12px; line-height: 1.5; color: var(--text); }
+.detected-location { font-size: 12px; color: #3b82f6; margin-top: 6px; font-weight: 600; }
+.warning-box { background: #fff5f5; border: 1px solid #fecaca; color: #991b1b; padding: 14px; border-radius: 12px; margin-bottom: 12px; font-size: 13px; line-height: 1.5; }
+.sun-text { font-size: 13px; color: var(--text-light); margin-bottom: 12px; text-align: center; }
+.link-button { display: flex; justify-content: space-between; align-items: center; background: #3b82f6; color: white; padding: 12px 14px; font-size: 13px; text-decoration: none; margin-bottom: 8px; width: 100%; box-sizing: border-box; }
+.share-btn { background: #25d366; color: white; padding: 12px; width: 100%; border-radius: 12px; font-size: 14px; font-weight: 700; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.export-btn { background: #475569; color: white; padding: 12px; width: 100%; border-radius: 12px; font-size: 14px; font-weight: 700; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.meta-info { margin-top: 20px; font-size: 11px; color: var(--text-light); text-align: center; border-top: 1px solid var(--border); padding-top: 10px; }
+.footer-copyright { text-align: center; font-size: 11px; color: var(--text-light); margin-top: 24px; border-top: 1px solid var(--border); padding-top: 12px; }
+#locationResultsSelect { display: none; margin-top: 8px; background: #f8fafc; border: 1px solid #3b82f6; }
+.risk-hero { border-radius: 18px; padding: 18px; margin-bottom: 14px; text-align: center; border: 1px solid var(--border); }
+.risk-green { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.risk-orange { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+.risk-red { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+.risk-icon { font-size: 34px; line-height: 1.1; }
+.risk-title { font-size: 20px; font-weight: 800; margin: 5px 0; }
+.risk-summary { font-size: 13px; margin-top: 8px; line-height: 1.4; text-align: left; background: rgba(255,255,255,0.6); padding: 10px; border-radius: 10px; }
+.input-section-title { font-size: 14px; font-weight: 800; color: var(--primary); margin: -2px 0 10px; display: flex; align-items: center; gap: 6px; }
+.input-hint { font-size: 11px; color: var(--text-light); margin-top: 6px; line-height: 1.35; }
+.trend-box { margin: 12px 0; padding: 12px; border-radius: 12px; background: #f1f5f9; border: 1px solid var(--border); font-size: 13px; line-height: 1.45; }
+.trend-good { border-color: #a7f3d0; background: #ecfdf5; color: #065f46; }
+.trend-warn { border-color: #fdba74; background: #fff7ed; color: #9a3412; }
+.trend-danger { border-color: #fecaca; background: #fef2f2; color: #7f1d1d; }
+
+@media print {
+  @page { size: A4 portrait; margin: 6mm 8mm; }
+  body { background: white !important; padding: 0 !important; font-size: 9pt !important; color: black !important; }
+  .container { box-shadow: none !important; max-width: 100% !important; padding: 0 !important; width: 100% !important; }
+  .card-section, .main-btn, .fav-bar, .share-btn, .export-btn, .link-button, .header, button { display: none !important; }
+  .location-title { font-size: 14pt !important; margin-bottom: 4px !important; }
+  .tour-specs-header { padding: 5px 8px !important; margin-bottom: 6px !important; font-size: 8.5pt !important; line-height: 1.3 !important; }
+  .risk-hero { padding: 6px 10px !important; margin-bottom: 6px !important; border-radius: 8px !important; }
+  .risk-icon { font-size: 20px !important; }
+  .risk-title { font-size: 13pt !important; margin: 0 !important; }
+  .risk-summary { font-size: 8.5pt !important; padding: 4px 6px !important; margin-top: 4px !important; }
+  .trend-box { padding: 4px 8px !important; margin: 4px 0 !important; font-size: 8.5pt !important; border-radius: 6px !important; }
+  .warning-box { padding: 5px 8px !important; margin-bottom: 6px !important; font-size: 8.5pt !important; }
+  .slot { padding: 4px 8px !important; margin-bottom: 4px !important; font-size: 8.5pt !important; border-radius: 6px !important; page-break-inside: avoid; break-inside: avoid; }
+  .weather-split { padding: 3px 6px !important; margin: 3px 0 !important; gap: 4px !important; }
+  .weather-box-title { font-size: 8pt !important; margin-bottom: 2px !important; }
+  .sun-text { font-size: 8pt !important; margin-bottom: 6px !important; }
+  .footer-copyright, .meta-info { font-size: 7.5pt !important; margin-top: 4px !important; padding-top: 4px !important; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<img src="logo.png" class="logo-img" alt="Logo">
+<h1>Bergtouren Wetter Ampel</h1>
+</div>
+
+<div class="card-section">
+<label>Ort suchen:</label>
+<div class="row" style="position: relative;">
+<input type="text" id="locationSearch" placeholder="z.B. Puchberg, Reichenau, Maiersdorf" oninput="clearCoordsIfSearching()" style="padding-right: 35px;">
+<button type="button" onclick="clearSearchField()" style="position: absolute; right: 85px; top: 50%; transform: translateY(-50%); background: transparent; border: none; font-size: 16px; color: #94a3b8; cursor: pointer; padding: 5px; box-shadow: none;">✖</button>
+<button type="button" class="action-btn" onclick="searchLocation()">Suchen</button>
+</div>
+<div class="fav-bar">
+<select id="favoritesDropdown" onchange="loadFavoriteFromDropdown()" style="font-size: 12px; padding: 8px; flex: 1;">
+<option value="">⭐ Favoriten wählen...</option>
+</select>
+<button type="button" class="action-btn" onclick="saveCurrentAsFavorite()" style="background: #10b981; font-size: 12px; padding: 8px 10px;">+ Speichern</button>
+<button type="button" class="action-btn" onclick="deleteSelectedFavorite()" style="background: #ef4444; font-size: 12px; padding: 8px 10px;">❌ Löschen</button>
+</div>
+<select id="locationResultsSelect" onchange="selectLocationFromDropdown()">
+<option value="">-- Bitte Ort auswählen --</option>
+</select>
+<div id="locationPreview" class="detected-location"></div>
+</div>
+
+<div class="card-section">
+<label>Oder Koordinaten (Breite, Länge):</label>
+<div class="row" style="margin-bottom: 8px;">
+<input type="text" id="lat" placeholder="Breite (z.B. 47.7800)" oninput="clearSearchInput()">
+<input type="text" id="lon" placeholder="Länge (z.B. 15.8900)" oninput="clearSearchInput()">
+</div>
+<button type="button" class="action-btn" onclick="getGPS()" style="width: 100%; padding: 10px; background: #64748b;">📍 Aktueller Standort</button>
+</div>
+<div class="card-section">
+<label>⛰️ Gipfel-Höhenmeter (optional):</label>
+<input type="number" id="peakAltInput" placeholder="z.B. 2076 (für Gipfel-Wetter)" oninput="saveState()" style="font-size: 13px;">
+<small class="input-hint">Ohne Gipfelhöhe wird nur das Wetter am Ort angezeigt. Mit Gipfelhöhe wird zusätzlich das Wetter am Gipfel berechnet.</small>
+</div>
+
+<div class="card-section">
+<div class="form-group" style="margin-bottom: 12px;">
+<label style="display: flex; justify-content: space-between; align-items: center;">
+<span>⏱️ Geplante Startzeit:</span>
+<button type="button" onclick="setNowTime()" style="background: #e2e8f0; color: var(--text); border: none; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">🕒 Jetzt</button>
+</label>
+<input type="datetime-local" id="startTime" onchange="saveState()">
+</div>
+<div class="form-group" style="margin-bottom: 0;">
+<label>🥾 Geplante Tourendauer:</label>
+<select id="duration" onchange="saveState()">
+<option value="4">4 Stunden (Halbtag)</option>
+<option value="6" selected>6 Stunden (Normal)</option>
+<option value="8">8 Stunden (Tagestour)</option>
+<option value="10">10 Stunden (Lange Tour)</option>
+</select>
+</div>
+</div>
+
+<button class="main-btn" onclick="analyzeRisk()">Wetter abfragen</button>
+<div id="results"></div>
+<div class="footer-copyright">&copy; 2026 Christian Camus. Alle Rechte vorbehalten.</div>
+</div>
+<script>
+let foundLocations = [];
+let savedFavorites = JSON.parse(localStorage.getItem('bt_favorites') || '[]');
+let lastCoordLat = null;
+let lastCoordLon = null;
+
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function checkAndResetElevation(newLat, newLon) {
+    if (lastCoordLat !== null && lastCoordLon !== null) {
+        if (getDistance(lastCoordLat, lastCoordLon, newLat, newLon) > 20) {
+            document.getElementById('peakAltInput').value = "";
+            localStorage.removeItem('bt_alt');
+        }
+    }
+    lastCoordLat = newLat;
+    lastCoordLon = newLon;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    updateFavoritesDropdown();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const pLat = urlParams.get('lat');
+    const pLon = urlParams.get('lon');
+    const pSearch = urlParams.get('search');
+    const pStart = urlParams.get('start');
+    const pDuration = urlParams.get('duration');
+    const pAlt = urlParams.get('alt');
+
+    if (pLat && pLon) {
+        document.getElementById('lat').value = pLat;
+        document.getElementById('lon').value = pLon;
+        lastCoordLat = parseFloat(pLat);
+        lastCoordLon = parseFloat(pLon);
+        if (pAlt && pAlt !== "null" && pAlt !== "") document.getElementById('peakAltInput').value = pAlt;
+        if (pSearch) {
+            document.getElementById('locationSearch').value = decodeURIComponent(pSearch);
+            document.getElementById('locationPreview').innerText = '📍 Geteiltes Ziel: ' + decodeURIComponent(pSearch);
+        }
+        if (pStart) document.getElementById('startTime').value = pStart;
+        if (pDuration) document.getElementById('duration').value = pDuration;
+        saveState();
+        analyzeRisk();
+        return;
+    }
+
+    const savedSearch = localStorage.getItem('bt_search');
+    const savedLat = localStorage.getItem('bt_lat');
+    const savedLon = localStorage.getItem('bt_lon');
+    const savedStart = localStorage.getItem('bt_start');
+    const savedDuration = localStorage.getItem('bt_duration');
+    const savedPreview = localStorage.getItem('bt_preview');
+    const savedAlt = localStorage.getItem('bt_alt');
+
+    if (savedSearch) document.getElementById('locationSearch').value = savedSearch;
+    if (savedLat) { document.getElementById('lat').value = savedLat; lastCoordLat = parseFloat(savedLat); }
+    if (savedLon) { document.getElementById('lon').value = savedLon; lastCoordLon = parseFloat(savedLon); }
+    if (savedAlt && savedAlt !== "null" && savedAlt !== "") document.getElementById('peakAltInput').value = savedAlt;
+    if (savedStart) document.getElementById('startTime').value = savedStart;
+    if (!document.getElementById('startTime').value) setNowTime();
+    if (savedDuration) document.getElementById('duration').value = savedDuration;
+    if (savedPreview) document.getElementById('locationPreview').innerText = savedPreview;
+
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+});
+function updateFavoritesDropdown() {
+    const dropdown = document.getElementById('favoritesDropdown');
+    dropdown.innerHTML = '<option value="">⭐ Favoriten wählen...</option>';
+    savedFavorites.forEach((fav, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.text = fav.peakAlt ? fav.name + ' (' + fav.peakAlt + 'm)' : fav.name;
+        dropdown.appendChild(opt);
+    });
+}
+
+async function saveCurrentAsFavorite() {
+    const name = document.getElementById('locationSearch').value.trim();
+    const lat = document.getElementById('lat').value.trim();
+    const lon = document.getElementById('lon').value.trim();
+    const preview = document.getElementById('locationPreview').innerText;
+    const peakAlt = document.getElementById('peakAltInput').value.trim();
+
+    if (!name || !lat || !lon) { alert("Bitte Ort/Koordinaten eingeben."); return; }
+    const favData = { name, lat, lon, preview, peakAlt };
+    const index = savedFavorites.findIndex(f => f.name.toLowerCase() === name.toLowerCase());
+    if (index > -1) savedFavorites[index] = favData;
+    else savedFavorites.push(favData);
+
+    localStorage.setItem('bt_favorites', JSON.stringify(savedFavorites));
+    updateFavoritesDropdown();
+    alert('"' + name + '" wurde inklusive Gipfelhöhe gespeichert!');
+}
+
+function deleteSelectedFavorite() {
+    const currentSearchName = document.getElementById('locationSearch').value.trim();
+    if (!currentSearchName) { alert("Bitte wähle zuerst einen Favoriten aus oder gib den Namen im Suchfeld ein."); return; }
+    const index = savedFavorites.findIndex(f => f.name.toLowerCase() === currentSearchName.toLowerCase());
+    if (index === -1) { alert('"' + currentSearchName + '" wurde nicht in den Favoriten gefunden.'); return; }
+    if (confirm('Möchtest du "' + savedFavorites[index].name + '" wirklich aus den Favoriten löschen?')) {
+        const deletedName = savedFavorites[index].name;
+        savedFavorites.splice(index, 1);
+        localStorage.setItem('bt_favorites', JSON.stringify(savedFavorites));
+        updateFavoritesDropdown();
+        clearSearchField();
+        alert('"' + deletedName + '" wurde erfolgreich gelöscht.');
+    }
+}
+
+function loadFavoriteFromDropdown() {
+    const dropdown = document.getElementById('favoritesDropdown');
+    const index = dropdown.value;
+    if (index === "") return;
+
+    const fav = savedFavorites[index];
+    document.getElementById('locationSearch').value = fav.name || "";
+    document.getElementById('lat').value = fav.lat || "";
+    document.getElementById('lon').value = fav.lon || "";
+    document.getElementById('peakAltInput').value = fav.peakAlt || "";
+    document.getElementById('locationPreview').innerText = fav.preview || ('⭐ Favorit: ' + fav.name);
+    document.getElementById('locationResultsSelect').style.display = "none";
+
+    lastCoordLat = parseFloat(fav.lat);
+    lastCoordLon = parseFloat(fav.lon);
+    saveState();
+    dropdown.value = "";
+}
+
+function clearSearchField() {
+    document.getElementById('locationSearch').value = "";
+    document.getElementById('locationResultsSelect').style.display = "none";
+    document.getElementById('locationPreview').innerText = "";
+    document.getElementById('peakAltInput').value = "";
+    saveState();
+}
+
+function setNowTime() {
+    const now = new Date();
+    const localIso = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+    document.getElementById('startTime').value = localIso;
+    saveState();
+}
+
+function saveState() {
+    localStorage.setItem('bt_search', document.getElementById('locationSearch').value);
+    localStorage.setItem('bt_lat', document.getElementById('lat').value);
+    localStorage.setItem('bt_lon', document.getElementById('lon').value);
+    localStorage.setItem('bt_start', document.getElementById('startTime').value);
+    localStorage.setItem('bt_duration', document.getElementById('duration').value);
+    localStorage.setItem('bt_preview', document.getElementById('locationPreview').innerText);
+    localStorage.setItem('bt_alt', document.getElementById('peakAltInput').value);
+}
+
+function clearSearchInput() {
+    document.getElementById('locationSearch').value = "";
+    document.getElementById('locationResultsSelect').style.display = "none";
+    saveState();
+}
+
+function clearCoordsIfSearching() {
+    document.getElementById('lat').value = "";
+    document.getElementById('lon').value = "";
+    document.getElementById('peakAltInput').value = "";
+    document.getElementById('locationPreview').innerText = "";
+    saveState();
+}
+async function searchLocation() {
+    const query = document.getElementById('locationSearch').value.trim();
+    const selectBox = document.getElementById('locationResultsSelect');
+    if (!query) { alert("Bitte Ort eingeben."); return; }
+    document.getElementById('locationPreview').innerText = "Suche Orte...";
+    selectBox.style.display = "none";
+    selectBox.innerHTML = '<option value="">-- Bitte Ort auswählen --</option>';
+    try {
+        const res = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(query) + '&count=5&language=de');
+        const data = await res.json();
+        if (data.results && data.results.length > 0) {
+            foundLocations = data.results;
+            if (foundLocations.length === 1) { setCoordinates(foundLocations[0]); }
+            else {
+                foundLocations.forEach((place, index) => {
+                    const opt = document.createElement('option'); opt.value = index;
+                    const regionParts = [place.admin1, place.country].filter(Boolean).join(', ');
+                    opt.text = place.name + ' (' + regionParts + ') [' + place.latitude.toFixed(2) + ', ' + place.longitude.toFixed(2) + ']';
+                    selectBox.appendChild(opt);
+                });
+                selectBox.style.display = "block";
+                document.getElementById('locationPreview').innerText = "🔍 Mehrere Treffer. Bitte wählen:";
+            }
+        } else { document.getElementById('locationPreview').innerText = "❌ Kein Ort gefunden."; }
+        saveState();
+    } catch(e) { document.getElementById('locationPreview').innerText = "❌ Fehler bei der Ortssuche."; }
+}
+
+async function selectLocationFromDropdown() {
+    const selectBox = document.getElementById('locationResultsSelect');
+    const index = selectBox.value;
+    if (index !== "" && foundLocations[index]) {
+        setCoordinates(foundLocations[index]);
+        selectBox.style.display = "none";
+    }
+}
+
+async function setCoordinates(place) {
+    const lat = parseFloat(place.latitude);
+    const lon = parseFloat(place.longitude);
+    checkAndResetElevation(lat, lon);
+    document.getElementById('lat').value = lat.toFixed(4);
+    document.getElementById('lon').value = lon.toFixed(4);
+    const regionParts = [place.admin1, place.country].filter(Boolean).join(', ');
+    document.getElementById('locationPreview').innerText = '📍 Ausgewählt: ' + place.name + ' (' + regionParts + ')';
+    saveState();
+}
+
+async function getGPS() {
+    if (!navigator.geolocation) { alert("GPS nicht unterstützt."); return; }
+    document.getElementById('locationSearch').value = "";
+    document.getElementById('locationResultsSelect').style.display = "none";
+    navigator.geolocation.getCurrentPosition(async (p) => {
+        const lat = parseFloat(p.coords.latitude); const lon = parseFloat(p.coords.longitude);
+        checkAndResetElevation(lat, lon);
+        document.getElementById('lat').value = lat.toFixed(4);
+        document.getElementById('lon').value = lon.toFixed(4);
+        document.getElementById('locationPreview').innerText = "Ermittle Ortsname...";
+        const placeName = await fetchLocationName(lat, lon);
+        document.getElementById('locationPreview').innerText = '📍 GPS: ' + placeName + ' [' + lat.toFixed(4) + ', ' + lon.toFixed(4) + ']';
+        saveState();
+    }, () => { alert("Standort konnte nicht ermittelt werden."); }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+async function fetchLocationName(lat, lon) {
+    try {
+        const res = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=12&addressdetails=1', { headers: { 'Accept-Language': 'de' } });
+        const data = await res.json();
+        if (data && data.address) {
+            const addr = data.address;
+            const name = addr.village || addr.town || addr.city || addr.municipality || addr.county || addr.suburb || "";
+            const region = addr.state || addr.region || "";
+            if (name && region) return name + ' (' + region + ')';
+            if (name) return name; if (region) return region;
+        }
+    } catch(e) {}
+    return 'Position (' + lat + ', ' + lon + ')';
+}
+
+function getSunTimes(dateStr, lat, lon) {
+    const d = new Date(dateStr + 'T12:00:00');
+    const rad = Math.PI / 180;
+    const day = Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(),0,0)) / 86400000);
+    const decl = 23.44 * Math.sin(rad * (360 / 365 * (day - 81)));
+    const solarNoon = 12 - (parseFloat(lon) / 15);
+    const cosH = (Math.cos(rad * 90.833) - Math.sin(rad * parseFloat(lat)) * Math.sin(rad * decl)) / (Math.cos(rad * parseFloat(lat)) * Math.cos(rad * decl));
+    if (cosH <= -1 || cosH >= 1) return { sunrise: '--:--', sunset: '--:--', daylight: '--' };
+    const H = Math.acos(cosH) / rad / 15;
+    const fmt = hours => {
+        const mins = Math.round(hours * 60);
+        const h = ((Math.floor(mins / 60) % 24) + 24) % 24;
+        const m = ((mins % 60) + 60) % 60;
+        return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+    };
+    return { sunrise: fmt(solarNoon - H), sunset: fmt(solarNoon + H), daylight: Math.floor(2*H) + 'h ' + Math.round((2*H%1)*60) + 'min' };
+}
+function scoreRisk({rain, gust, cape, weatherCode, precipProb, visibility, freezingLevel, peakAlt, hour, snowfall, cloudLow, baseElevation}) {
+    let score = 0;
+    const reasons = [];
+    const hard = [];
+
+    if (gust >= 90) { score += 60; reasons.push('Sturmböen'); hard.push('wind'); }
+    else if (gust >= 75) { score += 45; reasons.push('Sehr kräftige Böen'); }
+    else if (gust >= 60) { score += 30; reasons.push('Kräftige Böen'); }
+    else if (gust >= 50) { score += 15; reasons.push('Böen'); }
+
+    const effectiveRain = rain * (0.55 + 0.45 * Math.min(1, precipProb / 100));
+    if (effectiveRain >= 8) { score += 45; reasons.push('Starkregen'); }
+    else if (effectiveRain >= 4) { score += 35; reasons.push('Starkregen'); }
+    else if (effectiveRain >= 2) { score += 25; reasons.push('Kräftiger Regen'); }
+    else if (rain >= 0.15 && precipProb >= 50) { score += 15; reasons.push('Regen'); }
+    else if (rain >= 0.15) { score += 8; reasons.push('Niederschlag möglich'); }
+
+    if (snowfall >= 3) { score += 35; reasons.push('Deutlicher Schneefall'); }
+    else if (snowfall >= 1) { score += 25; reasons.push('Schneefall'); }
+    else if (snowfall > 0.2 && precipProb >= 50) { score += 12; reasons.push('Leichter Schneefall'); }
+
+    if ([95,96,99].includes(Number(weatherCode))) {
+        score += 65; reasons.push('Gewittergefahr'); hard.push('thunder');
+    } else if (cape >= 1200) {
+        score += 40; reasons.push('Hohe Gewitterneigung');
+    } else if (cape >= 700) {
+        score += 25; reasons.push('Gewitterneigung');
+    }
+
+    if (visibility > 0 && visibility < 2000) {
+        score += 25; reasons.push('Stark eingeschränkte Sicht');
+    } else if (visibility > 0 && visibility < 5000) {
+        score += 8; reasons.push('Eingeschränkte Sicht');
+    }
+
+    if (peakAlt > 0 && cloudLow >= 70 && (peakAlt > baseElevation + 400)) {
+        score += 15;
+        reasons.push('Gipfel vermutlich in Wolken/Nebel');
+    }
+
+    score = Math.min(100, Math.round(score));
+    let level = score >= 70 ? 'red' : score >= 35 ? 'orange' : 'green';
+    return {score, level, reasons, hard};
+}
+
+function riskLabel(level) {
+    return level === 'red' ? 'GEFÄHRLICHE BEDINGUNGEN' :
+           level === 'orange' ? 'ACHTUNG' : 'STABILE BEDINGUNGEN';
+}
+function riskIcon(level) {
+    return level === 'red' ? '🔴' : level === 'orange' ? '🟠' : '🟢';
+}
+function getPressureLevelData(hourly, idx, targetAlt) {
+    const levels = [
+        {alt:500, t:'temperature_950hPa', w:'wind_speed_950hPa'},
+        {alt:800, t:'temperature_925hPa', w:'wind_speed_925hPa'},
+        {alt:1000, t:'temperature_900hPa', w:'wind_speed_900hPa'},
+        {alt:1500, t:'temperature_850hPa', w:'wind_speed_850hPa'},
+        {alt:1900, t:'temperature_800hPa', w:'wind_speed_800hPa'}
+    ];
+    const available=levels.map(l=>({...l,temp:Number(hourly[l.t]?.[idx]),wind:Number(hourly[l.w]?.[idx])}))
+      .filter(x=>Number.isFinite(x.temp)&&Number.isFinite(x.wind));
+    if(!available.length || !Number.isFinite(targetAlt)) return null;
+    if(targetAlt<=available[0].alt) return {...available[0],alt:targetAlt};
+    if(targetAlt>=available[available.length-1].alt) return {...available[available.length-1],alt:targetAlt};
+    for(let i=0;i<available.length-1;i++){
+      const a=available[i],b=available[i+1];
+      if(targetAlt>=a.alt&&targetAlt<=b.alt){
+        const f=(targetAlt-a.alt)/(b.alt-a.alt);
+        return {alt:targetAlt,temp:a.temp+(b.temp-a.temp)*f,wind:a.wind+(b.wind-a.wind)*f};
+      }
+    }
+    return null;
+}
+
+async function triggerShare() {
+    const lat = document.getElementById('lat').value;
+    const lon = document.getElementById('lon').value;
+    const search = document.getElementById('locationSearch').value;
+    const start = document.getElementById('startTime').value;
+    const duration = document.getElementById('duration').value;
+    const peakAlt = document.getElementById('peakAltInput').value;
+
+    const baseUrl = window.location.origin + window.location.pathname;
+    const shareUrl = baseUrl + '?lat=' + lat + '&lon=' + lon + '&search=' + encodeURIComponent(search) + '&start=' + encodeURIComponent(start) + '&duration=' + duration + '&alt=' + peakAlt;
+    const shareMessage = '🏔️ Bergtouren Wetter-Check für ' + (search || 'unsere Tour') + '!\n' + shareUrl;
+
+    if (navigator.share) {
+        try { await navigator.share({ title: 'Bergtouren Wetter-Check', text: shareMessage }); } catch(e) {}
+    } else {
+        window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(shareMessage), '_blank');
+    }
+}
+
+function trendClassification(previousScore, currentScore) {
+    const delta = currentScore - previousScore;
+    if (delta >= 25) return {icon:'↘️', cls:'trend-danger', text:'Wetter verschlechtert sich deutlich während der Tour.'};
+    if (delta >= 10) return {icon:'↘️', cls:'trend-warn', text:'Wetter verschlechtert sich während der Tour.'};
+    if (delta <= -25) return {icon:'↗️', cls:'trend-good', text:'Wetter verbessert sich deutlich während der Tour.'};
+    if (delta <= -10) return {icon:'↗️', cls:'trend-good', text:'Wetter verbessert sich während der Tour.'};
+    return {icon:'➡️', cls:'', text:'Wetter bleibt während der Tour weitgehend stabil.'};
+}
+
+function timeOnly(iso) { return iso ? iso.replace(/^.*T/, '').slice(0,5) : '--:--'; }
+function minutesFromHHMM(str) { if (!str || str === '--:--') return null; const p = str.split(':').map(Number); return p.length === 2 ? p[0] * 60 + p[1] : null; }
+function modelSpread(values){ const v=values.filter(Number.isFinite); return v.length>1?Math.max(...v)-Math.min(...v):0; }
+function modelConfidence(samples){
+    const ts=samples.map(x=>modelSpread(x.temp)).filter(Number.isFinite);
+    const ws=samples.map(x=>modelSpread(x.wind)).filter(Number.isFinite);
+    const rs=samples.map(x=>modelSpread(x.rain)).filter(Number.isFinite);
+    const t=Math.max(0,...ts), w=Math.max(0,...ws), r=Math.max(0,...rs);
+    const score=t + w*0.15 + r*2;
+    if(score<=4) return {level:'high',label:'HOHE PROGNOSESICHERHEIT',text:'Die Wettermodelle stimmen weitgehend überein.'};
+    if(score<=9) return {level:'medium',label:'MITTLERE PROGNOSESICHERHEIT',text:'Die Wettermodelle zeigen teilweise unterschiedliche Entwicklungen.'};
+    return {level:'low',label:'ERHÖHTE PROGNOSEUNSICHERHEIT',text:'Die Wettermodelle weichen deutlich voneinander ab. Wetterentwicklung regelmäßig überprüfen.'};
+}
+
+function sportHints({rain,snow,gust,cape,code,freeze,peakAlt,baseElevation}){
+    const a=[];
+    if(rain>=0.15){ a.push('⚠️ <strong>Nässe:</strong> Von Klettersteigen oder steilen Felstouren wird bei nassem Fels abgeraten. Nasser Fels ist rutschig und kann die Tour massiv erschweren.'); }
+    if(gust>=50){ a.push('💨 <strong>Wind:</strong> Achtung bei Touren am Grat oder an exponierten Stellen. Kräftige Böen können das Gleichgewicht beeinträchtigen.'); }
+    if([95,96,99].includes(Number(code))||cape>=1200){ a.push('⚡ <strong>Gewitter:</strong> Exponierte Gipfel, Grate und Klettersteige meiden und gefährdete Bereiche rechtzeitig verlassen.'); }
+    if(snow>0.2){ a.push('❄️ <strong>Schnee:</strong> Schneebedeckter Untergrund kann rutschig sein und die Wegfindung erschweren.'); }
+    const icy=(freeze>0 && peakAlt && peakAlt>=freeze-150 && snow>0.05) || (freeze<=baseElevation+250 && rain>0.15);
+    if(icy){ a.push('🧊 <strong>Eis:</strong> Vereiste Stellen sind möglich, besonders auf steilen und schattigen Passagen. Erhöhte Rutschgefahr.'); }
+    return a;
+}
+
+function conditionHint({rain,snow,gust,prob,code,isDay=1}){
+    if (code === undefined || code === null || isNaN(Number(code))) return 'Keine Daten';
+    if([95,96,99].includes(Number(code))) return 'Gewittergefahr';
+    if(snow>=1) return 'Starker Schneefall';
+    if(snow>0.2) return 'Schneefall';
+    if(rain>=4) return 'Starkregen';
+    if(rain>=0.15&&prob>=50) return 'Regen';
+    if(rain>=0.15) return 'Niederschlag möglich';
+    if(gust>=75) return 'Sehr kräftige Böen';
+    if(gust>=50) return 'Kräftige Böen';
+    if(prob<20&&rain<0.15&&snow<=0.2&&[0,1].includes(Number(code))) {
+        return isDay === 1 ? 'Sonnig und trocken' : 'Klar und trocken';
+    }
+    if(prob<30&&rain<0.15&&snow<=0.2) return 'Weitgehend trocken';
+    return 'Bewölkung';
+}
+async function analyzeRisk() {
+    let lat=document.getElementById('lat').value.trim(), lon=document.getElementById('lon').value.trim();
+    const query=document.getElementById('locationSearch').value.trim();
+    if((!lat||!lon)&&query&&document.getElementById('locationResultsSelect').style.display==='none'){ await searchLocation(); lat=document.getElementById('lat').value.trim(); lon=document.getElementById('lon').value.trim(); }
+    const startTimeStr=document.getElementById('startTime').value, duration=parseInt(document.getElementById('duration').value), manualPeak=document.getElementById('peakAltInput').value.trim();
+    if(!lat||!lon||!startTimeStr){alert('Bitte Ort/Koordinaten und Startzeit eingeben.');return;}
+    saveState(); document.getElementById('results').innerHTML='<p style="text-align:center;color:#64748b;">⛰️ Berechne Tourenwetter...</p>';
+    
+    const startDt = new Date(startTimeStr); 
+    startDt.setMinutes(startDt.getMinutes() >= 30 ? 60 : 0, 0, 0);
+    
+    const now = new Date();
+    const hoursInFuture = (startDt.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    // 1. FALL: Mehr als 7 Tage (168 Stunden) im Voraus -> KEINE Wetterdaten ausgeben!
+    if (hoursInFuture > 168) {
+        document.getElementById('results').innerHTML = '<div class="warning-box" style="background: #fff7ed; border-color: #fdba74; color: #9a3412; padding: 18px; border-radius: 16px; margin-top: 15px; text-align: center;"><div style="font-size: 28px; margin-bottom: 8px;">⚠️</div><div style="font-size: 16px; font-weight: 800; margin-bottom: 10px;">Keine Wetterdaten verfügbar</div><p style="margin: 0 0 10px 0; font-size: 13px; line-height: 1.5;">Wetterprognosen sind maximal <strong>1 Woche im Voraus</strong> verfügbar. Für das gewählte Datum liegen noch keine verwertbaren Wetterdaten vor.</p><div style="background: rgba(255,255,255,0.7); padding: 10px; border-radius: 10px; font-size: 12px; font-weight: 600; line-height: 1.4; text-align: left;">💡 <strong>Hinweis zur Tourenplanung:</strong> Du kannst deine Tour natürlich jederzeit planen. Die finale Wetterbewertung sollte jedoch erst <strong>frühestens 48 Stunden vor Start</strong> berücksichtigt werden.</div></div>';
+        document.getElementById('results').scrollIntoView({behavior:'smooth'});
+        return;
+    }
+
+    // 2. FALL: Zwischen 48 Stunden und 7 Tagen -> Wetter anzeigen mit Warnung
+    let futureWarningHtml = '';
+    if (hoursInFuture > 48) {
+        const daysFuture = Math.round(hoursInFuture / 24);
+        futureWarningHtml = '<div style="background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; padding: 14px; border-radius: 14px; margin-bottom: 14px; font-size: 12px; line-height: 1.45;"><div style="font-weight: 800; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">⚠️ Erhöhte Prognose-Unsicherheit (' + daysFuture + ' Tage im Voraus)</div>Die gezeigten Wetterdaten basieren auf weiträumigen Modellberechnungen. Das Bergwetter kann sich bis zum Start noch erheblich verändern.<br><br>💡 <strong>Empfehlung:</strong> Die Tourenplanung kannst du jederzeit vorbereiten – das konkrete Wetter sollte aber erst <strong>frühestens 48 Stunden vor Start</strong> für die finale Entscheidung berücksichtigt werden.</div>';
+    }
+
+    const endDt = new Date(startDt.getTime() + (duration + 24) * 3600000);
+    const datePart = startDt.toLocaleDateString('sv-SE');
+    const endDateStr = endDt.toLocaleDateString('sv-SE');
+    const startTarget = datePart + 'T' + String(startDt.getHours()).padStart(2,'0') + ':00';
+    
+    const vars = ['is_day','temperature_2m','apparent_temperature','precipitation','rain','snowfall','weather_code','precipitation_probability','cloud_cover','cloud_cover_low','visibility','wind_speed_10m','wind_gusts_10m','cape','freezing_level_height','snow_depth','temperature_950hPa','temperature_925hPa','temperature_900hPa','temperature_850hPa','temperature_800hPa','wind_speed_950hPa','wind_speed_925hPa','wind_speed_900hPa','wind_speed_850hPa','wind_speed_800hPa'].join(',');
+    const base = 'latitude=' + lat + '&longitude=' + lon + '&hourly=' + vars + '&daily=sunrise,sunset,daylight_duration&start_date=' + datePart + '&end_date=' + endDateStr + '&timezone=auto&wind_speed_unit=kmh';
+    const urls = {icon:'https://api.open-meteo.com/v1/forecast?' + base + '&models=icon_seamless',ecmwf:'https://api.open-meteo.com/v1/forecast?' + base + '&models=ecmwf_ifs025',gfs:'https://api.open-meteo.com/v1/forecast?' + base + '&models=gfs_seamless'};
+    try {
+      const [ri,re,rg,locationName,elRes] = await Promise.all([fetch(urls.icon),fetch(urls.ecmwf),fetch(urls.gfs),fetchLocationName(+lat,+lon),fetch('https://api.open-meteo.com/v1/elevation?latitude=' + lat + '&longitude=' + lon)]);
+      if(!ri.ok) throw new Error('Wetter-API Fehler');
+      const data=await ri.json(), ecmwf=re.ok?await re.json():null, gfs=rg.ok?await rg.json():null, elData=await elRes.json();
+      const locationElevation=elData?.elevation?.length?Math.round(elData.elevation[0]):null, hourly=data.hourly;
+      
+      let startIndex=hourly.time.findIndex(t=>t.startsWith(startTarget)); 
+      if(startIndex<0) startIndex=hourly.time.findIndex(t=>t.startsWith(datePart));
+      
+      if(startIndex<0) {
+          document.getElementById('results').innerHTML = '<div class="warning-box" style="background: #fff7ed; border-color: #fdba74; color: #9a3412; padding: 18px; border-radius: 16px; margin-top: 15px; text-align: center;"><div style="font-size: 28px; margin-bottom: 8px;">⚠️</div><div style="font-size: 16px; font-weight: 800; margin-bottom: 10px;">Keine Wetterdaten verfügbar</div><p style="margin: 0 0 10px 0;">Für dieses Datum liegen noch keine Wetterdaten vor.</p><div style="background: rgba(255,255,255,0.7); padding: 10px; border-radius: 10px; font-size: 12px; font-weight: 600; line-height: 1.4; text-align: left;">💡 <strong>Hinweis:</strong> Berücksichtige das Wetter erst frühestens 48 Stunden vor Aufbruch.</div></div>';
+          return;
+      }
+      
+      const hasPeak=manualPeak!==''&&!isNaN(parseInt(manualPeak)), peakAlt=hasPeak?parseInt(manualPeak):null, tourEnd=new Date(startDt.getTime()+duration*3600000);
+      let sunrise='--:--',sunset='--:--',daylight='--';
+      if(data.daily?.sunrise?.[0])sunrise=data.daily.sunrise[0].split('T')[1]; if(data.daily?.sunset?.[0])sunset=data.daily.sunset[0].split('T')[1];
+      if(data.daily?.daylight_duration?.[0]!=null){const sec=Math.round(data.daily.daylight_duration[0]);daylight=Math.floor(sec/3600) + 'h ' + Math.round((sec%3600)/60) + 'min';}
+      if(sunrise==='--:--'||sunset==='--:--'){const z=getSunTimes(datePart,lat,lon);sunrise=z.sunrise;sunset=z.sunset;daylight=z.daylight;}
+      let maxScore=-1,worst=null,slotsHtml='',hasThunder=false,hasRain=false,hasSnow=false,allReasons=[],hScores=[],hLevels=[],hTimes=[],hReasons=[],advice=[],modelSamples=[];
+      const findModelIdx=(obj,t)=>obj?.hourly?.time?.indexOf(t)??-1;
+
+      for(let i=0;i<duration;i++){
+        const idx=startIndex+i;if(idx>=hourly.time.length)break; const t=hourly.time[idx];
+        const isDay=Number(hourly.is_day?.[idx]??1);
+        const temp=Number(hourly.temperature_2m?.[idx]??0),rain=Number(hourly.precipitation?.[idx]??0),snow=Number(hourly.snowfall?.[idx]??0),gust=Number(hourly.wind_gusts_10m?.[idx]??0),prob=Number(hourly.precipitation_probability?.[idx]??0),cape=Number(hourly.cape?.[idx]??0),vis=Number(hourly.visibility?.[idx]??0),code=Number(hourly.weather_code?.[idx]??0),freeze=Number(hourly.freezing_level_height?.[idx]??9999),cloud=Number(hourly.cloud_cover?.[idx]??0),cloudLow=Number(hourly.cloud_cover_low?.[idx]??0);
+        let peakTemp=null,peakGust=null,isInversion=false;
+        if(hasPeak){const ph=getPressureLevelData(hourly,idx,peakAlt); if(ph){peakTemp=ph.temp;peakGust=ph.wind;}else{peakTemp=temp-0.65*((peakAlt-(locationElevation??peakAlt))/100);peakGust=gust;} isInversion=peakTemp>temp;}
+        const risk=scoreRisk({rain,gust:hasPeak?peakGust:gust,cape,weatherCode:code,precipProb:prob,visibility:vis,freezingLevel:freeze,peakAlt:hasPeak?peakAlt:0,hour:Number(t.split('T')[1].slice(0,2)),snowfall:snow,cloudLow,baseElevation:locationElevation??0});
+        hScores.push(risk.score);hLevels.push(risk.level);hTimes.push(t);hReasons.push(risk.reasons);allReasons.push(...risk.reasons);if(risk.score>maxScore){maxScore=risk.score;worst={time:t,risk};}
+        if(rain>=0.15)hasRain=true;if(snow>0.2)hasSnow=true;if(risk.reasons.includes('Gewittergefahr'))hasThunder=true;
+        advice.push(...sportHints({rain,snow,gust:hasPeak?peakGust:gust,cape,code,freeze,peakAlt,baseElevation:locationElevation??0}));
+        const ei=findModelIdx(ecmwf,t),gi=findModelIdx(gfs,t); modelSamples.push({temp:[temp,ei>=0?Number(ecmwf.hourly.temperature_2m?.[ei]):NaN,gi>=0?Number(gfs.hourly.temperature_2m?.[gi]):NaN],wind:[gust,ei>=0?Number(ecmwf.hourly.wind_gusts_10m?.[ei]):NaN,gi>=0?Number(gfs.hourly.wind_gusts_10m?.[gi]):NaN],rain:[rain,ei>=0?Number(ecmwf.hourly.precipitation?.[ei]):NaN,gi>=0?Number(gfs.hourly.precipitation?.[gi]):NaN]});
+        
+        const badge=riskLabel(risk.level),cls=risk.level==='red'?'status-red':risk.level==='orange'?'status-orange':'status-green';
+        const hint=conditionHint({rain,snow,gust:hasPeak?peakGust:gust,prob,code,isDay});
+        
+        const peakVisibility=hasPeak&&cloudLow>=70&&(peakAlt>(locationElevation??0)+300)?'🌫️ in Wolken/Nebel':(vis?'👁️ ' + (vis/1000).toFixed(1) + ' km Sicht':'👁️ Sicht normal');
+        const precip=rain>=0.15?'🌧️ ' + rain.toFixed(1) + ' mm/h (' + prob + '%)':snow>0.2?'❄️ ' + snow.toFixed(1) + ' cm/h (' + prob + '%)':(prob>30?'☁️ trocken (' + prob + '% Regenrisiko)':(isDay===1?'☀️ trocken':'🌙 trocken'));
+        const peakBox=hasPeak?'<div><div class="weather-box-title">⛰️ Gipfel (' + peakAlt + 'm)</div>🌡️ ' + peakTemp.toFixed(1) + '°C' + (isInversion?' 🔥':'') + '<br>💨 Wind: ' + Math.round(peakGust) + ' km/h<br>' + peakVisibility + '<br>' + precip + '</div>':'';
+        slotsHtml+='<div class="slot ' + cls + '"><div style="display:flex;justify-content:space-between;align-items:center"><strong>⏱️ ' + t.replace('T',' ') + ' Uhr</strong><span class="badge">' + badge + '</span></div><div class="weather-split"><div><div class="weather-box-title">📍 Ort (' + (locationElevation??'–') + 'm)</div>🌡️ ' + temp.toFixed(1) + '°C<br>💨 Wind: ' + Math.round(gust) + ' km/h<br>🌦️ ' + hint + '</div>' + peakBox + '</div><div style="font-size:12px;margin-top:4px">Bewölkung: ' + Math.round(cloud) + '% · Nullgradgrenze: ' + Math.round(freeze) + ' m' + (hasPeak?' · Gipfel: ' + peakAlt + ' m':'') + '</div><div style="margin-top:4px;font-size:11px;font-weight:600">ℹ️ <strong>Hinweis:</strong> ' + hint + '</div></div>';
+      }
+      const trend=trendClassification(hScores[0]??0,hScores[hScores.length-1]??0); let trendText=trend.icon + ' ' + trend.text; if(hScores.length>1){if(hLevels[0]!==hLevels[hLevels.length-1])trendText+=' Start ' + riskLabel(hLevels[0]).toLowerCase() + ', Ende ' + riskLabel(hLevels[hLevels.length-1]).toLowerCase() + '.';}
+      const overall=maxScore>=70?'red':maxScore>=35?'orange':'green';
+      const overallLabel=overall==='green'?'STABILE BEDINGUNGEN':riskLabel(overall);
+      const confidence=modelConfidence(modelSamples); const tourEndStr=tourEnd.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),tourDateStr=startDt.toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}),tourStartStr=startDt.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+      const uniqueAdvice=[...new Set(advice)]; const showAvalancheLink=(startDt.getMonth()+1)>=11||(startDt.getMonth()+1)<=6;
+      
+      if(hasSnow&&hasPeak&&peakAlt>=1000&&!uniqueAdvice.some(x=>x.includes('Lawinenlage')))uniqueAdvice.push('🏔️ <strong>Lawinenlage:</strong> Bei winterlichen Bedingungen aktuelle Lawinenlage vor der Tour prüfen. Wetterdaten allein ersetzen keine Lawinenprognose.');
+      const sunsetM=minutesFromHHMM(sunset),endM=minutesFromHHMM(tourEndStr);if(sunsetM!=null&&endM!=null&&endM>sunsetM)uniqueAdvice.push('🌅 <strong>Achtung:</strong> Tourende (' + tourEndStr + ') nach Sonnenuntergang (' + sunset + ').');
+      
+      const reasons=[...new Set(allReasons)].slice(0,3);
+      const summary=reasons.length?reasons.join(' · '):(startDt.getHours()>=6 && startDt.getHours()<=20 ? 'Sonnig und trocken' : 'Klar und trocken');
+      
+      let html = futureWarningHtml + '<div class="location-title">📍 Ziel: ' + locationName + '</div><div class="tour-specs-header">📅 <strong>Datum:</strong> ' + tourDateStr + '<br>⏱️ <strong>Zeitraum:</strong> ' + tourStartStr + ' – ' + tourEndStr + ' Uhr (' + duration + ' Std.)<br>📍 <strong>Ortshöhe:</strong> ' + (locationElevation??'–') + ' m<br>⛰️ <strong>Gipfelhöhe:</strong> ' + (hasPeak?peakAlt+' m':'nicht angegeben') + '</div>';
+      html += '<div class="risk-hero risk-' + overall + '"><div class="risk-icon">' + riskIcon(overall) + '</div><div class="risk-title">' + overallLabel + '</div><div class="risk-summary"><strong>Hinweis:</strong> ' + summary + '</div></div>';
+      html += '<div class="trend-box ' + trend.cls + '"><strong>Wetterverlauf:</strong> ' + trendText + '</div>';
+      
+      const cc = confidence.level==='high'?'trend-good':confidence.level==='medium'?'trend-warn':'trend-danger'; 
+      html += '<div class="trend-box ' + cc + '"><strong>Modellvergleich:</strong> ' + confidence.label + '<br><span style="font-size:11px">' + confidence.text + '</span><br><span style="font-size:10px">DWD ICON-D2 · ECMWF IFS · GFS</span></div>';
+      html += '<div class="sun-text">🌅 Aufgang: <strong>' + sunrise + '</strong> · Untergang: <strong>' + sunset + '</strong> (' + daylight + ' Tageslicht)</div>';
+      
+      if (showAvalancheLink) html += '<a href="https://lawinen.at/" target="_blank" class="link-button"><span>🏔️ Lawinenwarndienst</span><span>Öffnen ↗</span></a>';
+      html += '<a href="https://www.windy.com/?rain,' + lat + ',' + lon + ',10" target="_blank" class="link-button" style="background:#0f766e"><span>🌧️ Live Regenradar & Wind (' + locationName + ')</span><span>Windy ↗</span></a>';
+      
+      if (uniqueAdvice.length) {
+        html += '<div class="warning-box">' + uniqueAdvice.join('<br><br>') + '</div>';
+      }
+      
+      html += slotsHtml;
+      html += '<button type="button" class="share-btn" onclick="triggerShare()">🔗 Tour-Wetter teilen</button>';
+      html += '<button type="button" class="export-btn" onclick="window.print()">📄 Als PDF / Druckversion speichern</button>';
+      html += '<div class="meta-info" style="margin-top:15px">Bergtouren Wetter Ampel · Modelle: DWD ICON-D2, ECMWF IFS, GFS<br><strong>Abrufzeitpunkt der Daten: ' + new Date().toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) + ' Uhr</strong></div>';
+      
+      document.getElementById('results').innerHTML = html;
+      document.getElementById('results').scrollIntoView({behavior:'smooth'});
+    } catch(e) {
+      console.error(e);
+      document.getElementById('results').innerHTML = '<p style="color:red;text-align:center">Fehler beim Laden der Wetterdaten.</p>';
+    }
+}
+</script>
+</body>
+</html>
