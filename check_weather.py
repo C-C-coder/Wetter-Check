@@ -16,7 +16,6 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# 8 Himmelsrichtungen für die Vektor- und Frontanalyse
 LIVE_DIRS = [
     {"name": "N", "lat": 1, "lon": 0}, {"name": "NO", "lat": .7071, "lon": .7071}, {"name": "O", "lat": 0, "lon": 1},
     {"name": "SO", "lat": -.7071, "lon": .7071}, {"name": "S", "lat": -1, "lon": 0}, {"name": "SW", "lat": -.7071, "lon": -.7071},
@@ -32,27 +31,31 @@ def direction_name(name):
     return {"N": "Norden", "NO": "Nordosten", "O": "Osten", "SO": "Südosten", "S": "Süden", "SW": "Südwesten", "W": "Westen", "NW": "Nordwesten"}.get(name, name)
 
 def find_onset(times, values, threshold=0.08):
+    if not times or not values:
+        return None
     for i in range(len(values)):
-        v = float(values[i] or 0)
-        next_v = float(values[i+1] or 0) if i + 1 < len(values) else v
-        if v >= threshold and (next_v >= threshold or i == len(values) - 1):
-            return {"time": times[i], "amount": v}
+        try:
+            v = float(values[i] or 0)
+            next_v = float(values[i+1] or 0) if i + 1 < len(values) else v
+            if v >= threshold and (next_v >= threshold or i == len(values) - 1):
+                return {"time": times[i], "amount": v}
+        except Exception:
+            continue
     return None
 
 def analyze_advanced_front(lat, lon):
     try:
-        # 1. Direkt am Standort prüfen (0 km)
         center_url = f"https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nowcast-v1-15min-1km?lat_lon={lat:.5f},{lon:.5f}&parameters=rr&forecast_offset=0&output_format=geojson"
         c_res = requests.get(center_url, timeout=8).json()
-        c_param = c_res.get('features', [{}])[0].get('properties', {}).get('parameters', {}).get('rr', {})
-        c_times = c_param.get('timestamps', c_param.get('time', []))
-        c_vals = c_param.get('data', [])
-        
-        center_onset = find_onset(c_times, c_vals, threshold=0.08)
-        if center_onset:
-            return {"stage": "arrival", "distance_km": 0, "time": center_onset["time"], "direction": None, "amount": center_onset["amount"]}
+        c_features = c_res.get('features', [])
+        if c_features:
+            c_param = c_features[0].get('properties', {}).get('parameters', {}).get('rr', {})
+            c_times = c_param.get('timestamps', c_param.get('time', []))
+            c_vals = c_param.get('data', [])
+            center_onset = find_onset(c_times, c_vals, threshold=0.08)
+            if center_onset:
+                return {"stage": "arrival", "distance_km": 0, "time": center_onset["time"], "direction": None, "amount": center_onset["amount"]}
 
-        # 2. Radien für 18km, 12km, 4km und Übergänge abfragen
         points = []
         radii = [4, 8, 12, 18, 20]
         for d in LIVE_DIRS:
@@ -80,32 +83,35 @@ def analyze_advanced_front(lat, lon):
                 if outer_km in items and inner_km in items:
                     o_out = find_onset(items[outer_km]["times"], items[outer_km]["vals"])
                     o_in = find_onset(items[inner_km]["times"], items[inner_km]["vals"])
-                    if o_out and o_in and o_out["time"] and o_in["time"]:
-                        t_out = datetime.fromisoformat(o_out["time"].replace('Z', '+00:00')).timestamp()
-                        t_in = datetime.fromisoformat(o_in["time"].replace('Z', '+00:00')).timestamp()
-                        dt = t_in - t_out
-                        if dt > 0:
-                            dist_diff = outer_km - inner_km
-                            speed_kmh = dist_diff / (dt / 3600)
-                            
-                            if 10 <= speed_kmh <= 120:
-                                eta_ms = t_in + (inner_km / speed_kmh) * 3600
+                    if o_out and o_in and o_out.get("time") and o_in.get("time"):
+                        try:
+                            t_out = datetime.fromisoformat(o_out["time"].replace('Z', '+00:00')).timestamp()
+                            t_in = datetime.fromisoformat(o_in["time"].replace('Z', '+00:00')).timestamp()
+                            dt = t_in - t_out
+                            if dt > 0:
+                                dist_diff = outer_km - inner_km
+                                speed_kmh = dist_diff / (dt / 3600)
                                 
-                                if inner_km >= 16:
-                                    stage = "early_warning" # ca. 18km
-                                elif inner_km >= 8:
-                                    stage = "update_mid"    # ca. 12km
-                                else:
-                                    stage = "update_close"  # ca. 4km
+                                if 10 <= speed_kmh <= 120:
+                                    eta_ms = t_in + (inner_km / speed_kmh) * 3600
+                                    
+                                    if inner_km >= 16:
+                                        stage = "early_warning"
+                                    elif inner_km >= 8:
+                                        stage = "update_mid"
+                                    else:
+                                        stage = "update_close"
 
-                                candidates.append({
-                                    "stage": stage,
-                                    "distance_km": inner_km,
-                                    "time": datetime.fromtimestamp(eta_ms, timezone.utc).isoformat(),
-                                    "direction": dir_name,
-                                    "amount": max(o_out["amount"], o_in["amount"]),
-                                    "speed": speed_kmh
-                                }))
+                                    candidates.append({
+                                        "stage": stage,
+                                        "distance_km": inner_km,
+                                        "time": datetime.fromtimestamp(eta_ms, timezone.utc).isoformat(),
+                                        "direction": dir_name,
+                                        "amount": max(o_out.get("amount", 0), o_in.get("amount", 0)),
+                                        "speed": speed_kmh
+                                    })
+                        except Exception:
+                            continue
 
         if candidates:
             candidates.sort(key=lambda x: x["time"])
@@ -117,14 +123,35 @@ def analyze_advanced_front(lat, lon):
 
 def check_all_tours():
     now = datetime.now(timezone.utc)
+    # Aktuelle Uhrzeit formatiert für den Benachrichtigungs-Hinweis (z.B. "14:32 Uhr")
+    # Umstellung auf lokale Zeit (Österreich / MEZ/MESZ approx via UTC+2 im Sommer, hier sauber via datetime.now() oder offset)
+    local_time_str = datetime.now().strftime("%H:%M") + " Uhr"
+
     subscriptions_ref = db.collection('tour_subscriptions')
     docs = subscriptions_ref.stream()
 
     for doc in docs:
         tour = doc.to_dict()
         token = tour.get('token')
+        
+        # Koordinaten-Fallback-Logik:
+        # 1. Versuche Live-GPS (lat/lon)
+        # 2. Falls nicht da -> Letzte bekannte Position (last_lat / last_lon)
+        # 3. Falls gar nichts da -> Geplante Start-Koordinaten (start_lat / start_lon)
         lat = tour.get('lat')
         lon = tour.get('lon')
+        coord_source = "Live-GPS"
+
+        if not lat or not lon:
+            lat = tour.get('last_lat')
+            lon = tour.get('last_lon')
+            coord_source = "Letzte bekannte Position"
+
+        if not lat or not lon:
+            lat = tour.get('start_lat')
+            lon = tour.get('start_lon')
+            coord_source = "Geplante Start-Koordinaten (Kein GPS)"
+
         start_time_str = tour.get('startTime')
         duration = tour.get('duration', 6)
         
@@ -146,40 +173,43 @@ def check_all_tours():
                 body = ""
                 send_alert = False
 
+                # Hinweis anfügen, falls nicht mit echtem Live-GPS gerechnet wurde
+                gps_note = f" [Basis: {coord_source}]" if coord_source != "Live-GPS" else ""
+
                 if front:
                     arr_dt = datetime.fromisoformat(front["time"].replace('Z', '+00:00'))
                     mins_left = max(0, int((arr_dt - now).total_seconds() / 60))
                     dir_txt = f" aus {direction_name(front['direction'])}" if front.get("direction") else ""
-                    speed_txt = f" (Zugbahn ca. {int(front.get('speed', 30))} km/h)" if front.get("speed") else ""
-                    time_txt = f"in ca. {mins_left} Minuten" if mins_left > 0 else "unmittelbar"
+                    speed_txt = f" (ca. {int(front.get('speed', 30))} km/h)" if front.get("speed") else ""
+                    time_txt = f"in ca. {mins_left} Min" if mins_left > 0 else "unmittelbar"
 
                     stage = front["stage"]
                     
                     if stage == "early_warning" and last_notified_stage != "early_warning":
                         current_stage = "early_warning"
-                        title = "⚠️ Schlechtwetter zieht auf (ca. 18km)"
-                        body = f"Eine Front zieht{dir_txt} auf und wird voraussichtlich {time_txt} erwartet{speed_txt}."
+                        title = f"⚠️ Schlechtwetter zieht auf [{local_time_str}]"
+                        body = f"Front zieht{dir_txt} auf, erwartet {time_txt}{speed_txt}.{gps_note}"
                         send_alert = True
                     elif stage == "update_mid" and last_notified_stage not in ["update_mid", "update_close", "arrival"]:
                         current_stage = "update_mid"
-                        title = "⚠️ Front rückt näher (ca. 12km)"
-                        body = f"Das Unwetter ist auf etwa 12 km herangerückt. Ankunft {time_txt}."
+                        title = f"⚠️ Front rückt näher [{local_time_str}]"
+                        body = f"Unwetter auf ca. 12 km herangerückt. Ankunft {time_txt}.{gps_note}"
                         send_alert = True
                     elif stage == "update_close" and last_notified_stage not in ["update_close", "arrival"]:
                         current_stage = "update_close"
-                        title = "⚡ Letzte Warnung: Nur noch ca. 4km!"
-                        body = f"Die Front ist unmittelbar vor deiner Position! Eintreffen {time_txt}."
+                        title = f"⚡ Letzte Warnung (4km) [{local_time_str}]"
+                        body = f"Front unmittelbar vor Position! Eintreffen {time_txt}.{gps_note}"
                         send_alert = True
                     elif stage == "arrival" and last_notified_stage != "arrival":
                         current_stage = "arrival"
-                        title = "🚨 Front hat Position erreicht!"
-                        body = "Niederschlag oder Gewitter ist direkt über deinem Standort aktiv."
+                        title = f"🚨 Front erreicht Standort! [{local_time_str}]"
+                        body = f"Niederschlag/Gewitter direkt aktiv.{gps_note}"
                         send_alert = True
                 else:
                     if last_state in ['danger', 'worsening', 'early_warning', 'update_mid', 'update_close']:
                         current_stage = "improving"
-                        title = "🌤️ Entwarnung / Front vorbeigezogen"
-                        body = "Die Wetterfront hat Kurs geändert oder zieht vorbei. Die Bedingungen stabilisieren sich."
+                        title = f"🌤️ Entwarnung [{local_time_str}]"
+                        body = f"Wetterfront zieht vorbei. Bedingungen stabilisieren sich.{gps_note}"
                         send_alert = (last_notified_stage != "improving")
                     else:
                         current_stage = "stable"
@@ -196,13 +226,13 @@ def check_all_tours():
                     )
                     messaging.send(message)
                     update_data['last_notified_stage'] = current_stage
-                    print(f"Zonen-Push gesendet ({current_stage}) an Token: {token[:10]}...")
+                    print(f"Zonen-Push gesendet ({current_stage}) mit Sendezeit {local_time_str} an Token: {token[:10]}...")
 
                 db.collection('tour_subscriptions').document(doc.id).update(update_data)
 
         except Exception as e:
-            print(f"Fehler bei Front-Analyse: {e}")
+            print(f"Fehler bei Front-Analyse für Tour {doc.id}: {e}")
 
 if __name__ == "__main__":
     check_all_tours()
-                    
+                                    
