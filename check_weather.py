@@ -137,10 +137,10 @@ def check_all_tours():
                     dir_txt = f" aus Richtung {direction_name(arrival['direction']) }" if arrival.get("direction") else " direkt über dem Standort"
                     time_txt = f"in ca. {mins_left} Minuten" if mins_left > 0 else "jetzt"
 
-                    if arrival["amount"] >= 0.5:
+                                        if True: # Test-Modus: Löst sofort aus
                         current_state = 'danger'
-                        title = "⚡ Regen- / Gewitterfront im Anmarsch!"
-                        body = f"Eine Zelle zieht{dir_txt} auf und erreicht deine Position {time_txt}."
+                        title = "⚡ Test-Alarm: Regen im Anmarsch!"
+                                            
                     else:
                         current_state = 'worsening'
                         title = "⚠️ Leichter Regen im Anmarsch"
