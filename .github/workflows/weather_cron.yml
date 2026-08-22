@@ -2,14 +2,14 @@ name: Tour Weather Cron
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+    - cron: '*/15 * * * *' # Läuft alle 15 Minuten
+  workflow_dispatch: # Erlaubt den manuellen Start über den Button
 
 jobs:
   run-weather-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -17,11 +17,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
-        run: pip install requests firebase-admin
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests firebase-admin
 
-      - name: Run Weather Check Script
+      - name: Run weather check script
         env:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
-        run: python check_weather.py
-        
+        run: |
+          python check_weather.py
+          
