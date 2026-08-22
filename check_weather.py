@@ -76,7 +76,6 @@ def analyze_advanced_front(lat, lon):
 
         candidates = []
         for dir_name, items in grouped.items():
-            # Überprüfung der Vektor-Schritte passend zu unseren Zielzonen
             for outer_km, inner_km in [(20, 18), (18, 12), (12, 4)]:
                 if outer_km in items and inner_km in items:
                     o_out = find_onset(items[outer_km]["times"], items[outer_km]["vals"])
@@ -92,7 +91,6 @@ def analyze_advanced_front(lat, lon):
                             if 10 <= speed_kmh <= 120:
                                 eta_ms = t_in + (inner_km / speed_kmh) * 3600
                                 
-                                # Zuordnung zu exakten Stufen (18km, 12km, 4km)
                                 if inner_km >= 16:
                                     stage = "early_warning" # ca. 18km
                                 elif inner_km >= 8:
@@ -157,10 +155,9 @@ def check_all_tours():
 
                     stage = front["stage"]
                     
-                    # Exakte Warn-Logik bei 18km, 12km und 4km
                     if stage == "early_warning" and last_notified_stage != "early_warning":
                         current_stage = "early_warning"
-                        title = "⚠️ Schlechtwetetr zieht auf (ca. 18km)"
+                        title = "⚠️ Schlechtwetter zieht auf (ca. 18km)"
                         body = f"Eine Front zieht{dir_txt} auf und wird voraussichtlich {time_txt} erwartet{speed_txt}."
                         send_alert = True
                     elif stage == "update_mid" and last_notified_stage not in ["update_mid", "update_close", "arrival"]:
@@ -179,7 +176,6 @@ def check_all_tours():
                         body = "Niederschlag oder Gewitter ist direkt über deinem Standort aktiv."
                         send_alert = True
                 else:
-                    # Entwarnung, wenn die Front abdreht oder vorbei ist
                     if last_state in ['danger', 'worsening', 'early_warning', 'update_mid', 'update_close']:
                         current_stage = "improving"
                         title = "🌤️ Entwarnung / Front vorbeigezogen"
@@ -209,4 +205,4 @@ def check_all_tours():
 
 if __name__ == "__main__":
     check_all_tours()
-                       
+                    
