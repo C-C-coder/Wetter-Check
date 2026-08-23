@@ -2,7 +2,9 @@ name: Tour Weather Cron
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # Läuft jetzt alle 15 Minuten für sekundengenaue Unwetter- und Regenwarnungen
+    - cron: '*/15 * * * *' # Fallback-Intervall (alle 15 Minuten)
+  repository_dispatch:
+    types: [trigger-weather-check] # Ermöglicht den sofortigen Start von außen
   workflow_dispatch: # Erlaubt den manuellen Start über den Button
 
 jobs:
