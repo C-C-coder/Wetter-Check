@@ -2,7 +2,7 @@ name: Tour Weather Cron
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # Läuft jetzt alle 5 Minuten für sekundengenaue Unwetter- und Regenwarnungen
+    - cron: '*/15 * * * *' # Läuft jetzt alle 5 Minuten für sekundengenaue Unwetter- und Regenwarnungen
   workflow_dispatch: # Erlaubt den manuellen Start über den Button
 
 jobs:
