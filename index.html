@@ -1,0 +1,1797 @@
+﻿<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Bergtouren Wetter Ampel</title><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="logo.png"><link rel="icon" href="logo.png" type="image/png">
+
+<!-- Firebase SDKs (Compat Versionen für einfache Einbindung) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+<!-- Firestore SDK für die Speicherung der Tour-Daten & Tokens -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<!-- Leaflet CSS & JS für die Karten-Auswahl -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<style>
+:root { --primary: #1e293b; --accent: #10b981; --accent-hover: #059669; --bg: #f8fafc; --card-bg: #ffffff; --border: #e2e8f0; --text: #334155; --text-light: #64748b; }
+body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; display: flex; justify-content: center; }
+.container { width: 100%; max-width: 520px; background: var(--card-bg); padding: 20px; border-radius: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); }
+.header { text-align: center; margin-bottom: 16px; }
+.logo-img { width: 80px; height: 80px; object-fit: contain; margin-bottom: 8px; border-radius: 16px; }
+h1 { font-size: 1.3rem; color: var(--primary); margin: 0 0 4px 0; }
+.subtitle { font-size: 0.85rem; color: var(--text-light); margin: 0; }
+.form-group { margin-bottom: 14px; }
+label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: var(--primary); }
+input, select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.9rem; box-sizing: border-box; background: #fff; color: var(--text); outline: none; transition: border-color 0.2s; }
+input:focus, select:focus { border-color: var(--accent); }
+.row { display: flex; gap: 10px; }
+.row .form-group { flex: 1; }
+.btn { width: 100%; background: var(--accent); color: white; border: none; padding: 12px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 5px; }
+.btn:hover { background: var(--accent-hover); }
+.btn-push { background: #8b5cf6; margin-top: 8px; display: none; } 
+.btn-push:hover { background: #7c3aed; }
+.btn-push.active { background: #ef4444; } 
+.btn-push.active:hover { background: #dc2626; }
+.results { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 15px; }
+.weather-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.weather-card h3 { margin: 0 0 8px 0; font-size: 1rem; color: var(--primary); display: flex; justify-content: space-between; align-items: center; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+.badge-green { background: #d1fae5; color: #065f46; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.warning-box { background: #fff7ed; border-left: 4px solid #f97316; padding: 10px; border-radius: 8px; font-size: 0.85rem; margin-top: 10px; color: #9a3412; }
+.share-btn, .export-btn { background: var(--primary); color: #fff; margin-top: 8px; border: none; padding: 10px; border-radius: 10px; width: 100%; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+.link-button { display: flex; justify-content: space-between; align-items: center; background: #e2e8f0; color: var(--primary); text-decoration: none; padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; margin-top: 8px; }
+
+.card-section { background: #f8fafc; border: 1px solid var(--border); border-radius: 16px; padding: 15px; margin-bottom: 12px; }
+.fav-bar { display: flex; gap: 6px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+.action-btn { background: #3b82f6; color: white; padding: 0 12px; font-size: 13px; white-space: nowrap; border: none; border-radius: 10px; cursor: pointer; }
+.detected-location { font-size: 12px; color: #3b82f6; margin-top: 6px; font-weight: 600; }
+.advanced-panel { display: none; margin-top: 10px; }
+.advanced-panel.open { display: block; }
+.advanced-toggle { width: 100%; background: #64748b; color: #fff; padding: 10px 12px; border-radius: 11px; font-size: 13px; margin-top: 10px; border: none; cursor: pointer; }
+.peak-section { margin-top: 12px; }
+.selected-peak { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 10px; border-radius: 10px; font-size: 12px; margin-top: 8px; }
+.small-note { font-size: 11px; color: var(--text-light); line-height: 1.4; }
+.clear-small { background: #e2e8f0; color: #334155; padding: 8px 10px; font-size: 11px; border: none; border-radius: 8px; cursor: pointer; }
+.tour-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.tour-checkbox { display: flex; align-items: center; gap: 6px; font-size: 13px; background: #fff; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; }
+.tour-checkbox input { width: auto; margin: 0; }
+.gpx-box { background: #f0fdf4; border: 1px dashed #10b981; border-radius: 16px; padding: 12px; margin-bottom: 12px; text-align: center; }
+.gpx-btn { background: #10b981; color: white; padding: 10px 14px; font-size: 13px; border-radius: 10px; cursor: pointer; display: inline-block; font-weight: 600; border: none; }
+.slot { padding: 14px; margin-bottom: 12px; border-radius: 12px; font-size: 13px; }
+.status-green { background: #ecfdf5; border-left: 5px solid #10b981; color: #065f46; }
+.status-orange { background: #fff7ed; border-left: 5px solid #f59e0b; color: #9a3412; }
+.status-red { background: #fef2f2; border-left: 5px solid #ef4444; color: #7f1d1d; }
+.weather-split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; background: rgba(255,255,255,0.6); padding: 8px; border-radius: 8px; }
+.weather-split.single-col { grid-template-columns: 1fr; }
+.weather-box-title { font-weight: 700; font-size: 11px; text-transform: uppercase; margin-bottom: 4px; color: var(--primary); }
+.risk-hero { border-radius: 18px; padding: 18px; margin-bottom: 14px; text-align: center; border: 1px solid var(--border); }
+.risk-green { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.risk-orange { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+.risk-red { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+.risk-icon { font-size: 34px; line-height: 1.1; }
+.risk-title { font-size: 20px; font-weight: 800; margin: 5px 0; }
+.risk-summary { font-size: 13px; margin-top: 8px; line-height: 1.4; text-align: left; background: rgba(255,255,255,0.6); padding: 10px; border-radius: 10px; }
+.trend-box { margin: 12px 0; padding: 12px; border-radius: 12px; background: #f1f5f9; border: 1px solid var(--border); font-size: 13px; line-height: 1.45; }
+.trend-good { border-color: #a7f3d0; background: #ecfdf5; color: #065f46; }
+.trend-warn { border-color: #fdba74; background: #fff7ed; color: #9a3412; }
+.trend-danger { border-color: #fecaca; background: #fef2f2; color: #7f1d1d; }
+.live-tour-box{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;padding:14px;border-radius:14px;margin-bottom:12px;font-size:13px;line-height:1.45}
+.live-tour-box.live-alert{background:#fff7ed;border-color:#fdba74;color:#9a3412}
+.live-tour-box.live-danger{background:#fef2f2;border-color:#fecaca;color:#7f1d1d}
+.live-tour-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:6px;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+.live-muted{font-size:11px;color:#64748b}
+.live-row{display:flex;justify-content:space-between;gap:8px;margin-top:5px}
+
+/* Karten-Modal Stile */
+#mapModal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+#mapContainerWrapper { background: #fff; width: 90%; max-width: 500px; height: 450px; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+#mapElement { flex: 1; width: 100%; }
+.map-modal-header { padding: 12px 16px; background: var(--primary); color: white; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 0.9rem; }
+.map-modal-footer { padding: 10px; background: #f8fafc; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); }
+
+/* Startpunkt Karten-Modal Stile */
+#startMapModal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+#startMapContainerWrapper { background: #fff; width: 90%; max-width: 500px; height: 450px; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+#startMapElement { flex: 1; width: 100%; }
+
+/* Gipfel-Karten-Modal Stile */
+#peakMapModal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+#peakMapContainerWrapper { background: #fff; width: 92%; max-width: 520px; height: 480px; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+#peakMapElement { flex: 1; width: 100%; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<img src="logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none'">
+<h1>Bergtouren Wetter Ampel</h1>
+<p class="subtitle">Präzise Vorhersagen & Live-Nowcasting für deine Tour</p>
+</div>
+
+<!-- GPX Import Section -->
+<div class="gpx-box">
+<label style="color:#065f46;margin-bottom:6px">🗺️ Tour aus GPX-Datei laden</label>
+<input type="file" id="gpxFileInput" accept=".gpx" style="display:none" onchange="handleGPXUpload(event)">
+<button type="button" class="gpx-btn" onclick="document.getElementById('gpxFileInput').click()">📂 GPX-Datei auswählen</button>
+<div id="gpxStatus" class="small-note" style="margin-top:6px;color:#047857"></div>
+</div>
+
+<div class="card-section">
+<label>📍 Start</label>
+<div class="row" style="position:relative">
+<input type="text" id="locationSearch" placeholder="z.B. Waldegg, Ramsau, Puchberg" oninput="clearCoordsIfSearching()">
+<button type="button" onclick="clearSearchField()" style="position:absolute;right:155px;top:50%;transform:translateY(-50%);background:transparent;border:none;font-size:16px;color:#94a3b8;cursor:pointer">✖</button>
+<button type="button" class="action-btn" onclick="useCurrentGPS()" style="background:#10b981;" title="Aktuelle GPS Position verwenden">📍 GPS</button>
+<button type="button" class="action-btn" onclick="searchLocation()">Suchen</button>
+</div>
+
+<!-- Touren speichern & laden -->
+<div class="fav-bar">
+<select id="favoritesDropdown" onchange="loadFavoriteFromDropdown()" style="font-size:12px;padding:8px;flex:1"><option value="">💾 Gespeicherte Touren laden...</option></select>
+<button type="button" class="action-btn" onclick="saveCurrentAsFavorite()" style="background:#10b981;font-size:12px;padding:8px 10px">+ Speichern</button>
+<button type="button" class="action-btn" onclick="deleteSelectedFavorite()" style="background:#ef4444;font-size:12px;padding:8px 10px">❌ Löschen</button>
+</div>
+
+<select id="locationResultsSelect" onchange="selectLocationFromDropdown()" style="display:none;margin-top:8px;"><option value="">-- Bitte Ort auswählen --</option></select>
+<div id="locationPreview" class="detected-location"></div>
+
+<button type="button" class="advanced-toggle" onclick="openStartMapModal()">🗺️ auf Karte auswählen</button>
+
+<div id="advancedLocation" class="advanced-panel" style="display:none;">
+<!-- Versteckte Felder für interne Logik (Lat/Lon) -->
+<input type="hidden" id="lat">
+<input type="hidden" id="lon">
+<input type="hidden" id="start_lat">
+<input type="hidden" id="start_lon">
+</div>
+</div>
+
+<!-- Startpunkt Karten-Modal Dialog -->
+<div id="startMapModal">
+<div id="startMapContainerWrapper">
+<div class="map-modal-header">
+<span>Startpunkt auf Karte auswählen</span>
+<button type="button" onclick="closeStartMapModal()" style="background:transparent;border:none;color:white;font-size:16px;cursor:pointer;">✖</button>
+</div>
+<div id="startMapElement"></div>
+<div class="map-modal-footer">
+<button type="button" class="clear-small" onclick="closeStartMapModal()">Abbrechen</button>
+<button type="button" class="action-btn" onclick="confirmStartMapSelection()" style="background:#10b981;">Punkt übernehmen</button>
+</div>
+</div>
+</div>
+
+<!-- Gipfel-Karten-Modal Dialog -->
+<div id="peakMapModal">
+<div id="peakMapContainerWrapper">
+<div class="map-modal-header">
+<span>Gipfel auf Karte auswählen</span>
+<button type="button" onclick="closePeakMapModal()" style="background:transparent;border:none;color:white;font-size:16px;cursor:pointer;">✖</button>
+</div>
+<div id="peakMapElement"></div>
+<div class="map-modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+<span id="peakMapHint" style="font-size:11px;color:var(--text-light);">Klicke auf einen Gipfel oder eine freie Stelle.</span>
+<div>
+<button type="button" class="clear-small" onclick="closePeakMapModal()">Abbrechen</button>
+</div>
+</div>
+</div>
+</div>
+
+<div class="card-section peak-section">
+<label>⛰️ Gipfel / Ziel (optional)</label>
+<div id="peakSelected" class="selected-peak" style="display:none"></div>
+<div id="peakSearchHint" class="small-note">Startort wählen oder Karte öffnen.</div>
+<select id="peakDropdown" onchange="selectPeakFromDropdown()" style="margin-top:8px;display:none"><option value="">-- Gipfel auswählen --</option></select>
+<div id="peakLoading" class="small-note" style="display:none;color:#059669;margin-top:6px;">⛰️ Suche Gipfel in der Umgebung …</div>
+<div class="row" style="margin-top:8px;">
+<!-- "Gipfel im Umkreis suchen" versteckt, läuft unsichtbar im Hintergrund -->
+<button type="button" id="peakSearchBtn" class="action-btn" onclick="searchMountainsAroundStart()" style="display:none;"></button>
+<button type="button" id="peakMapBtn" class="action-btn" onclick="openPeakMapModal()" style="width:100%;padding:10px;background:#0284c7;">🗺️ Gipfel auf Karte auswählen</button>
+</div>
+</div>
+
+<div class="card-section">
+<label>🥾 Tourart (Mehrfachauswahl möglich)</label>
+<div class="tour-grid">
+<label class="tour-checkbox"><input type="checkbox" name="tourType" value="hiking" onchange="saveState()"> Wanderung</label>
+<label class="tour-checkbox"><input type="checkbox" name="tourType" value="klettersteig" onchange="saveState()"> Klettersteig</label>
+<label class="tour-checkbox"><input type="checkbox" name="tourType" value="hochtour" onchange="saveState()"> Hochtour</label>
+<label class="tour-checkbox"><input type="checkbox" name="tourType" value="grat" onchange="saveState()"> Gratwanderung</label>
+<label class="tour-checkbox"><input type="checkbox" name="tourType" value="gletscher" onchange="saveState()"> Gletschertour</label>
+<label class="tour-checkbox"><input type="checkbox" name="tourType" value="klettern" onchange="saveState()"> Felskletterei</label>
+<label class="tour-checkbox"><input type="checkbox" name="tourType" value="ski" onchange="saveState()"> Schitour</label>
+</div>
+</div>
+
+<div class="card-section">
+<div class="form-group" style="margin-bottom:12px">
+<label style="display:flex;justify-content:space-between;align-items:center">
+<span>⏱️ Geplante Startzeit:</span>
+<button type="button" onclick="setNowTime()" style="background:#e2e8f0;color:var(--text);border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">🕒 Jetzt</button>
+</label>
+<input type="datetime-local" id="startTime" onchange="saveState()">
+</div>
+<div class="form-group">
+<label>🥾 Geplante Tourendauer:</label>
+<select id="duration" onchange="saveState()">
+<option value="4">4 Stunden (Halbtag)</option>
+<option value="6" selected>6 Stunden (Normal)</option>
+<option value="8">8 Stunden (Tagestour)</option>
+<option value="10">10 Stunden (Lange Tour)</option>
+<option value="12">12 Stunden (Sehr lange Tour)</option>
+</select>
+</div>
+</div>
+
+<button class="btn" onclick="analyzeRisk()">Wetter abfragen</button>
+<button type="button" id="pushToggleBtn" class="btn btn-push" onclick="toggleTourPush()">Push Benachrichtigungen für die Tour aktivieren</button>
+
+<!-- Infobox & Live-Statusanzeige für Push-Benachrichtigungen -->
+<div id="pushStatusInfo" class="small-note" style="margin-top:8px;padding:10px;background:#f1f5f9;border-radius:10px;border:1px solid var(--border);display:none;"></div>
+
+<div id="results" class="results"></div>
+<div class="footer-copyright">© 2026 Christian Camus. Alle Rechte vorbehalten.</div>
+</div>
+
+<script>
+// Firebase Initialisierung & Push Konfiguration
+const firebaseConfig = {
+apiKey: "AIzaSyADlL7BKaVPgdCH6xSqWEjVqf54q33E9WE",
+authDomain: "wetter-check.firebaseapp.com",
+projectId: "wetter-check",
+storageBucket: "wetter-check.firebasestorage.app",
+messagingSenderId: "184488061652",
+appId: "1:184488061652:web:dda3d879ff8cfd36d6e941"
+};
+
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+let messaging = null;
+
+// Service Worker für GitHub Pages Unterverzeichnis registrieren
+if ('serviceWorker' in navigator) {
+navigator.serviceWorker.register('./firebase-messaging-sw.js')
+.then((registration) => {
+console.log('Service Worker erfolgreich registriert:', registration.scope);
+messaging = firebase.messaging(app);
+messaging.useServiceWorker(registration);
+
+messaging.onMessage((payload) => {
+console.log('Foreground Push empfangen:', payload);
+if (payload.notification) {
+if ('Notification' in window && Notification.permission === 'granted') {
+ navigator.serviceWorker.ready.then(reg => {
+   reg.showNotification(payload.notification.title, {
+     body: payload.notification.body,
+     icon: 'logo.png',
+     data: payload.data
+   });
+ });
+}
+}
+});
+})
+.catch((err) => {
+console.error('Service Worker Registrierung fehlgeschlagen:', err);
+});
+}
+
+function updatePushStatusUI() {
+const infoBox = document.getElementById('pushStatusInfo');
+const isActive = localStorage.getItem('tour_push_active') === 'true';
+const tourTitle = localStorage.getItem('tour_push_title') || 'Aktuelle Tour';
+const startTime = localStorage.getItem('tour_push_start') || '';
+
+if (isActive) {
+infoBox.style.display = 'block';
+infoBox.innerHTML = `🔔 <strong>Push-Benachrichtigungen aktiv</strong> für: <em>${tourTitle}</em> (Start: ${startTime ? startTime.replace('T', ' ') : '–'})<br><span style="color:#64748b;">ℹ️ Du erhältst stündliche Updates sowie Unwetter-Warnungen. Es ist immer nur 1 Tour aktiv – ein erneuter Klick überschreibt diese Tour.</span><br><button type="button" class="action-btn" onclick="loadActiveTourFromCloud()" style="margin-top:8px;background:#0284c7;font-size:12px;padding:6px 10px;">aktive Tour laden</button>`;
+} else {
+infoBox.style.display = 'block';
+infoBox.innerHTML = `🔕 <strong>Keine Push-Benachrichtigungen aktiv.</strong><br><span style="color:#64748b;">ℹ️ Hinweis: Es kann immer nur für eine Tour gleichzeitig Push aktiv sein. Bei erneutem Aktivieren wird die vorherige Tour automatisch überschrieben.</span>`;
+}
+}
+
+async function loadActiveTourFromCloud() {
+const currentToken = localStorage.getItem('fcm_token');
+if (!currentToken) {
+alert('Kein lokaler Token gefunden.');
+return;
+}
+
+try {
+const docRef = db.collection('tour_subscriptions').doc(currentToken);
+const docSnap = await docRef.get();
+
+if (docSnap.exists) {
+const data = docSnap.data();
+
+if (data.tourTitle) {
+document.getElementById('locationSearch').value = data.tourTitle.split(' → ')[0] || data.tourTitle;
+}
+if (data.startTime) {
+document.getElementById('startTime').value = data.startTime;
+}
+if (data.lat && data.lon) {
+document.getElementById('lat').value = data.lat;
+document.getElementById('lon').value = data.lon;
+document.getElementById('start_lat').value = data.start_lat || data.lat;
+document.getElementById('start_lon').value = data.start_lon || data.lon;
+}
+if (data.duration) {
+document.getElementById('duration').value = data.duration;
+}
+
+// Gipfel-Daten aus der Cloud wiederherstellen
+if (data.peak_name) {
+selectedPeak = {
+name: data.peak_name,
+lat: data.peak_lat || null,
+lon: data.peak_lon || null,
+alt: data.peak_alt || null
+};
+renderSelectedPeak();
+} else {
+clearPeak();
+}
+
+alert('✅ Aktive Tour erfolgreich geladen!');
+analyzeRisk();
+} else {
+alert('Kein aktiver Cloud-Eintrag für diesen Token gefunden.');
+}
+} catch (error) {
+console.error("Fehler beim Laden der aktiven Tour:", error);
+alert('Fehler beim Laden: ' + error.message);
+}
+}
+
+async function toggleTourPush() {
+const btn = document.getElementById('pushToggleBtn');
+const isActive = btn.classList.contains('active');
+
+if (!messaging) {
+alert('Der Service Worker wird noch geladen. Bitte versuche es in 2 Sekunden noch einmal.');
+return;
+}
+
+if (!isActive) {
+try {
+const permission = await Notification.requestPermission();
+if (permission === 'granted') {
+const vapidKey = "BM1lhomK1in9e4w6Th_On3H8PLxO2nwXeAjSci1y8Y8QIeAG23ntriAqCc2Qx0r4Pu_tITTSGFkA5xsu_KI2Qs4";
+const registration = await navigator.serviceWorker.ready;
+
+const oldToken = localStorage.getItem('fcm_token');
+const currentToken = await messaging.getToken({ vapidKey: vapidKey, serviceWorkerRegistration: registration });
+
+if (currentToken) {
+// Falls sich the Token im Browser geändert hat, alten Eintrag in Firestore aufräumen
+if (oldToken && oldToken !== currentToken) {
+try {
+await db.collection('tour_subscriptions').doc(oldToken).delete();
+} catch(e) {}
+}
+
+const startPlace = document.getElementById('locationSearch').value || 'Startort';
+const peak = getPeakData();
+const tourTitle = startPlace + (peak?.name ? ' → ' + peak.name : '');
+const startTimeVal = document.getElementById('startTime').value;
+
+const startLat = parseFloat(document.getElementById('start_lat').value) || parseFloat(document.getElementById('lat').value) || 0;
+const startLon = parseFloat(document.getElementById('start_lon').value) || parseFloat(document.getElementById('lon').value) || 0;
+
+let targetLat = startLat;
+let targetLon = startLon;
+
+if (typeof liveLastPosition !== 'undefined' && liveLastPosition && Number.isFinite(liveLastPosition.lat) && Number.isFinite(liveLastPosition.lon)) {
+targetLat = liveLastPosition.lat;
+targetLon = liveLastPosition.lon;
+} else if (peak && Number.isFinite(peak.lat) && Number.isFinite(peak.lon)) {
+targetLat = peak.lat;
+targetLon = peak.lon;
+}
+
+const tourData = {
+token: currentToken,
+tourTitle: tourTitle,
+lat: targetLat,
+lon: targetLon,
+start_lat: startLat,
+start_lon: startLon,
+peak_name: peak?.name || '',
+peak_lat: peak?.lat || null,
+peak_lon: peak?.lon || null,
+peak_alt: peak?.alt || null,
+startTime: startTimeVal,
+duration: Number(document.getElementById('duration').value || 6),
+last_weather_state: 'stable',
+last_notified_stage: null,
+last_hourly_check: null,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+};
+
+// Dokument unter dem token speichern (.set überschreibt bestehenden Eintrag des Tokens direkt)
+await db.collection('tour_subscriptions').doc(currentToken).set(tourData);
+
+localStorage.setItem('fcm_token', currentToken);
+localStorage.setItem('tour_push_active', 'true');
+localStorage.setItem('tour_push_title', tourTitle);
+localStorage.setItem('tour_push_start', startTimeVal);
+
+btn.classList.add('active');
+btn.innerText = 'Push Benachrichtigungen für die Tour deaktivieren';
+updatePushStatusUI();
+
+alert('Erfolgreich! Tour "' + tourTitle + '" aktiv.');
+
+if ('Notification' in window && Notification.permission === 'granted') {
+const reg = await navigator.serviceWorker.ready;
+reg.showNotification('🏔️ Touren-Wetter aktiv!', {
+body: 'Erfolgreich aktiviert für: ' + tourTitle,
+icon: 'logo.png',
+data: { url: window.location.href }
+});
+}
+} else {
+alert('Fehler: Kein Registrierungstoken erhalten.');
+}
+} else {
+alert('Push-Benachrichtigungen wurden abgelehnt.');
+}
+} catch (error) {
+console.error("Detaillierter Push-Fehler:", error);
+alert('Fehler beim Aktivieren: ' + error.message);
+}
+} else {
+try {
+localStorage.removeItem('tour_push_active');
+localStorage.removeItem('tour_push_title');
+localStorage.removeItem('tour_push_start');
+const currentToken = localStorage.getItem('fcm_token');
+
+if (currentToken) {
+await db.collection('tour_subscriptions').doc(currentToken).delete();
+}
+
+if (currentToken && messaging.deleteToken) {
+await messaging.deleteToken();
+}
+localStorage.removeItem('fcm_token');
+btn.classList.remove('active');
+btn.innerText = 'Push Benachrichtigungen für die Tour aktivieren';
+updatePushStatusUI();
+alert('Push Benachrichtigungen für die Tour deaktiviert.');
+} catch (error) {
+btn.classList.remove('active');
+btn.innerText = 'Push Benachrichtigungen für die Tour aktivieren';
+updatePushStatusUI();
+alert('Push Benachrichtigungen wurden ausgeschaltet.');
+}
+}
+}
+
+let foundLocations=[], peakCandidates=[], selectedPeak=null; 
+let savedFavorites=JSON.parse(localStorage.getItem('bt_favorites_v5')||'[]');
+const TOUR_NAMES={hiking:'Wanderung',klettersteig:'Klettersteig',hochtour:'Hochtour',grat:'Gratwanderung',gletscher:'Gletschertour',klettern:'Felskletterei',ski:'Schitour'};
+
+// Startpunkt Karten-Variablen
+let startMapInstance = null;
+let startMapMarker = null;
+let selectedMapLat = 47.78;
+let selectedMapLon = 15.89;
+
+// Gipfel Karten-Variablen
+let peakMapInstance = null;
+let peakMapMarkers = [];
+
+function openStartMapModal() {
+document.getElementById('startMapModal').style.display = 'flex';
+
+const currentLat = parseFloat(document.getElementById('lat').value) || 47.7800;
+const currentLon = parseFloat(document.getElementById('lon').value) || 15.8900;
+selectedMapLat = currentLat;
+selectedMapLon = currentLon;
+
+setTimeout(() => {
+if (!startMapInstance) {
+startMapInstance = L.map('startMapElement').setView([currentLat, currentLon], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+maxZoom: 19,
+attribution: '© OpenStreetMap contributors'
+}).addTo(startMapInstance);
+
+startMapMarker = L.marker([currentLat, currentLon], {draggable: true}).addTo(startMapInstance);
+
+startMapMarker.on('dragend', function(event) {
+const markerPos = startMapMarker.getLatLng();
+selectedMapLat = markerPos.lat;
+selectedMapLon = markerPos.lng;
+});
+
+startMapInstance.on('click', function(e) {
+startMapMarker.setLatLng(e.latlng);
+selectedMapLat = e.latlng.lat;
+selectedMapLon = e.latlng.lng;
+});
+} else {
+startMapInstance.setView([currentLat, currentLon], startMapInstance.getZoom());
+startMapMarker.setLatLng([currentLat, currentLon]);
+startMapInstance.invalidateSize();
+}
+}, 100);
+}
+
+function closeStartMapModal() {
+document.getElementById('startMapModal').style.display = 'none';
+}
+
+async function confirmStartMapSelection() {
+document.getElementById('lat').value = selectedMapLat.toFixed(5);
+document.getElementById('lon').value = selectedMapLon.toFixed(5);
+document.getElementById('start_lat').value = selectedMapLat.toFixed(5);
+document.getElementById('start_lon').value = selectedMapLon.toFixed(5);
+closeStartMapModal();
+
+try {
+const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${selectedMapLat}&lon=${selectedMapLon}`);
+const d = await r.json();
+const placeName = d.address.village || d.address.town || d.address.city || d.address.municipality || 'Kartenauswahl';
+document.getElementById('locationSearch').value = placeName;
+document.getElementById('locationPreview').innerText = '📍 Karte: ' + placeName;
+} catch(e) {
+document.getElementById('locationSearch').value = 'Ausgewählter Kartenpunkt';
+document.getElementById('locationPreview').innerText = '📍 Koordinaten: ' + selectedMapLat.toFixed(4) + ', ' + selectedMapLon.toFixed(4);
+}
+
+clearPeak();
+saveState();
+searchMountainsAroundStart();
+}
+
+async function openPeakMapModal() {
+const startLat = parseFloat(document.getElementById('lat').value);
+const startLon = parseFloat(document.getElementById('lon').value);
+
+if (isNaN(startLat) || isNaN(startLon)) {
+alert('Bitte wähle zuerst einen Startort aus, damit die Karte darauf zentriert werden kann.');
+return;
+}
+
+document.getElementById('peakMapModal').style.display = 'flex';
+
+setTimeout(async () => {
+if (!peakMapInstance) {
+peakMapInstance = L.map('peakMapElement').setView([startLat, startLon], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+maxZoom: 19,
+attribution: '© OpenStreetMap contributors'
+}).addTo(peakMapInstance);
+
+peakMapInstance.on('click', async function(e) {
+const clickLat = e.latlng.lat;
+const clickLon = e.latlng.lng;
+
+try {
+const elRes = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${clickLat}&longitude=${clickLon}`);
+const elData = await elRes.json();
+const alt = elData.elevation?.[0] ? Math.round(elData.elevation[0]) : null;
+
+selectedPeak = {
+name: `Punkt (${clickLat.toFixed(3)}, ${clickLon.toFixed(3)})`,
+alt: alt,
+lat: clickLat,
+lon: clickLon
+};
+renderSelectedPeak();
+saveState();
+closePeakMapModal();
+} catch(err) {
+alert('Fehler beim Ermitteln der Höhendaten für diesen Punkt.');
+}
+});
+} else {
+peakMapInstance.setView([startLat, startLon], 13);
+peakMapInstance.invalidateSize();
+}
+
+peakMapMarkers.forEach(m => peakMapInstance.removeLayer(m));
+peakMapMarkers = [];
+
+const startMarker = L.marker([startLat, startLon], {
+icon: L.divIcon({className: 'start-pin', html: '📍', iconSize: [24, 24]})
+}).addTo(peakMapInstance);
+peakMapMarkers.push(startMarker);
+
+if (peakCandidates.length === 0) {
+await searchMountainsAroundStartSilent();
+}
+
+peakCandidates.forEach((p, idx) => {
+if (p.lat && p.lon) {
+const altStr = p.alt ? p.alt + ' m' : '';
+const marker = L.marker([p.lat, p.lon]).addTo(peakMapInstance);
+marker.bindPopup(`<b>⛰️ ${p.name}</b><br>${altStr}<br><button onclick="selectPeakByIndex(${idx})" style="margin-top:6px;background:#10b981;color:#fff;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;">Gipfel auswählen</button>`);
+peakMapMarkers.push(marker);
+}
+});
+}, 100);
+}
+
+function closePeakMapModal() {
+document.getElementById('peakMapModal').style.display = 'none';
+}
+
+function selectPeakByIndex(idx) {
+if (peakCandidates[idx]) {
+selectedPeak = peakCandidates[idx];
+renderSelectedPeak();
+saveState();
+closePeakMapModal();
+}
+}
+
+async function searchMountainsAroundStartSilent() {
+const lat = parseFloat(document.getElementById('lat').value);
+const lon = parseFloat(document.getElementById('lon').value);
+const startName = document.getElementById('locationSearch').value.trim();
+if (isNaN(lat) || isNaN(lon)) return;
+
+let rawPeaks = [];
+try {
+const searchTerm = startName ? startName : 'Gipfel';
+const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchTerm)}&count=40&language=de&format=json`);
+if (r.ok) {
+const d = await r.json();
+if (d.results) {
+d.results.forEach(x => {
+const dist = getDistance(lat, lon, x.latitude, x.longitude);
+if (dist <= 25) {
+rawPeaks.push({
+name: x.name,
+alt: x.elevation ? Math.round(x.elevation) : null,
+lat: x.latitude,
+lon: x.longitude,
+distance: dist
+});
+}
+});
+}
+}
+} catch(e) {}
+
+const uniquePeaks = [];
+const map = new Map();
+for (const item of rawPeaks) {
+if(!map.has(item.name)){
+map.set(item.name, true);
+uniquePeaks.push(item);
+}
+}
+peakCandidates = uniquePeaks.sort((a, b) => a.distance - b.distance);
+}
+
+function getSelectedTourTypes() {
+return Array.from(document.querySelectorAll('input[name="tourType"]:checked')).map(cb => cb.value);
+}
+
+function setSelectedTourTypes(typesArray) {
+document.querySelectorAll('input[name="tourType"]').forEach(cb => {
+cb.checked = typesArray.includes(cb.value);
+});
+}
+
+function getDistance(a,b,c,d){const R=6371,dl=(c-a)*Math.PI/180,dn=(d-b)*Math.PI/180,x=Math.sin(dl/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dn/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+
+function setNowTime(){
+const n=new Date();
+document.getElementById('startTime').value=new Date(n.getTime()-n.getTimezoneOffset()*60000).toISOString().slice(0,16);
+saveState();
+}
+
+function saveState(){
+['locationSearch','lat','lon','start_lat','start_lon','startTime','duration'].forEach(id=>{
+const el = document.getElementById(id);
+if(el) localStorage.setItem('bt5_'+id, el.value);
+});
+localStorage.setItem('bt5_tourTypes', JSON.stringify(getSelectedTourTypes()));
+if(selectedPeak) localStorage.setItem('bt5_peak',JSON.stringify(selectedPeak));
+}
+
+function clearSearchField(){
+document.getElementById('locationSearch').value='';
+document.getElementById('locationResultsSelect').style.display='none';
+document.getElementById('locationPreview').innerText='';
+document.getElementById('lat').value='';
+document.getElementById('lon').value='';
+document.getElementById('start_lat').value='';
+document.getElementById('start_lon').value='';
+clearPeak();
+localStorage.removeItem('bt5_peak');
+saveState();
+}
+
+function clearCoordsIfSearching(){
+document.getElementById('lat').value='';
+document.getElementById('lon').value='';
+document.getElementById('start_lat').value='';
+document.getElementById('start_lon').value='';
+document.getElementById('locationPreview').innerText='';
+clearPeak();
+localStorage.removeItem('bt5_peak');
+saveState();
+}
+
+function clearPeak(){
+selectedPeak=null;
+const drop = document.getElementById('peakDropdown');
+if(drop){
+drop.value = '';
+}
+document.getElementById('peakSelected').style.display='none';
+document.getElementById('peakSelected').innerHTML='';
+}
+
+function handleGPXUpload(event) {
+const file = event.target.files[0];
+if (!file) return;
+
+const status = document.getElementById('gpxStatus');
+status.innerText = 'Lese GPX-Datei ...';
+
+const reader = new FileReader();
+reader.onload = async function(e) {
+try {
+const xmlDoc = new DOMParser().parseFromString(e.target.result, "text/xml");
+const trackpoints = xmlDoc.querySelectorAll("trkpt, wpt");
+
+if (trackpoints.length === 0) {
+status.innerText = '❌ Keine Wegpunkte in GPX gefunden.';
+return;
+}
+
+const startLat = parseFloat(trackpoints[0].getAttribute("lat"));
+const startLon = parseFloat(trackpoints[0].getAttribute("lon"));
+document.getElementById('lat').value = startLat.toFixed(5);
+document.getElementById('lon').value = startLon.toFixed(5);
+document.getElementById('start_lat').value = startLat.toFixed(5);
+document.getElementById('start_lon').value = startLon.toFixed(5);
+
+let maxEle = -Infinity;
+let peakLat = null;
+let peakLon = null;
+
+trackpoints.forEach(pt => {
+const eleNode = pt.querySelector("ele");
+if (eleNode) {
+const ele = parseFloat(eleNode.textContent);
+if (ele > maxEle) {
+maxEle = ele;
+peakLat = parseFloat(pt.getAttribute("lat"));
+peakLon = parseFloat(pt.getAttribute("lon"));
+}
+}
+});
+
+const nameNode = xmlDoc.querySelector("trk > name, gpx > name");
+const gpxTourName = nameNode ? nameNode.textContent.trim() : "";
+
+try {
+const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${startLat}&lon=${startLon}`);
+const d = await r.json();
+const placeName = d.address.village || d.address.town || d.address.city || d.address.municipality || 'GPX Startort';
+document.getElementById('locationSearch').value = placeName;
+document.getElementById('locationPreview').innerText = '📍 GPX Start: ' + placeName;
+} catch (err) {
+document.getElementById('locationSearch').value = 'GPX Startort';
+}
+
+if (maxEle !== -Infinity) {
+selectedPeak = {
+name: gpxTourName ? `Gipfel (${gpxTourName})` : "Höchster Punkt (GPX)",
+alt: Math.round(maxEle),
+lat: peakLat,
+lon: peakLon
+};
+renderSelectedPeak();
+}
+
+status.innerText = '✅ GPX-Daten erfolgreich übernommen!';
+saveState();
+
+} catch (err) {
+status.innerText = '❌ Fehler beim Lesen der GPX-Datei.';
+}
+};
+reader.readAsText(file);
+}
+
+function updateFavoritesDropdown(){
+const d=document.getElementById('favoritesDropdown');
+d.innerHTML='<option value="">💾 Gespeicherte Touren laden...</option>';
+savedFavorites.forEach((f,i)=>{
+const o=document.createElement('option');
+o.value=i;
+const peakStr = f.peakName ? ' → ⛰️ ' + f.peakName : '';
+const nameStr = f.tourTitle || ((f.startName||'Startort') + peakStr);
+o.text = nameStr + (f.peakAlt ? ' (' + f.peakAlt + ' m)' : '');
+d.appendChild(o);
+});
+}
+
+function saveCurrentAsFavorite(){
+const s=document.getElementById('locationSearch').value.trim(),lat=document.getElementById('lat').value.trim(),lon=document.getElementById('lon').value.trim();
+if(!lat||!lon){alert('Bitte zuerst einen Startort auswählen.');return;}
+const peak=getPeakData();
+const defaultTitle = (s || 'Startort') + (peak?.name ? ' - ' + peak.name : '');
+const tourTitle = prompt('Name für diese Tour eingeben:', defaultTitle);
+if(!tourTitle) return;
+
+const f={
+tourTitle: tourTitle,
+startName:s||'Startort',
+lat,
+lon,
+peakName:peak?.name||'',
+peakLat:peak?.lat||'',
+peakLon:peak?.lon||'',
+peakAlt:peak?.alt||'',
+tourTypes: getSelectedTourTypes(),
+duration: document.getElementById('duration').value
+};
+savedFavorites.push(f);
+localStorage.setItem('bt_favorites_v5',JSON.stringify(savedFavorites));
+updateFavoritesDropdown();
+alert('Tour "' + tourTitle + '" erfolgreich gespeichert!');
+}
+
+function loadFavoriteFromDropdown(){
+const i=Number(document.getElementById('favoritesDropdown').value);
+const f=savedFavorites[i];
+if(!f)return;
+
+document.getElementById('locationSearch').value=f.startName||'';
+document.getElementById('lat').value=f.lat||'';
+document.getElementById('lon').value=f.lon||'';
+document.getElementById('start_lat').value=f.lat||'';
+document.getElementById('start_lon').value=f.lon||'';
+document.getElementById('locationPreview').innerText='💾 Tour geladen: '+(f.tourTitle || f.startName);
+
+if(f.tourTypes) setSelectedTourTypes(f.tourTypes);
+else if(f.tourType) setSelectedTourTypes([f.tourType]);
+if(f.duration) document.getElementById('duration').value = f.duration;
+
+if(f.peakName){
+selectedPeak={name:f.peakName,lat:Number(f.peakLat)||null,lon:Number(f.peakLon)||null,alt:Number(f.peakAlt)||null};
+renderSelectedPeak();
+} else clearPeak();
+
+document.getElementById('favoritesDropdown').value='';
+saveState();
+
+const currentToken = localStorage.getItem('fcm_token');
+const isActive = localStorage.getItem('tour_push_active') === 'true';
+if (isActive && currentToken) {
+db.collection('tour_subscriptions').doc(currentToken).update({
+lat: parseFloat(f.lat) || 0,
+lon: parseFloat(f.lon) || 0,
+start_lat: parseFloat(f.lat) || 0,
+start_lon: parseFloat(f.lon) || 0,
+tourTitle: f.tourTitle || (f.startName + (f.peakName ? ' → ' + f.peakName : '')),
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}).catch(async (err) => {
+try {
+await db.collection('tour_subscriptions').doc(currentToken).set({
+token: currentToken,
+lat: parseFloat(f.lat) || 0,
+lon: parseFloat(f.lon) || 0,
+tourTitle: f.tourTitle || (f.startName + (f.peakName ? ' → ' + f.peakName : '')),
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+} catch(e) {}
+});
+}
+}
+
+function deleteSelectedFavorite(){
+const d=document.getElementById('favoritesDropdown'),i=Number(d.value);
+if(!Number.isInteger(i)||!savedFavorites[i]){alert('Bitte zuerst eine Tour aus der Liste auswählen.');return;}
+if(confirm('Möchtest du diese gespeicherte Tour wirklich löschen?')){
+savedFavorites.splice(i,1);
+localStorage.setItem('bt_favorites_v5',JSON.stringify(savedFavorites));
+updateFavoritesDropdown();
+}
+d.value='';
+}
+
+function useCurrentGPS(){
+if(!navigator.geolocation){
+alert('GPS wird von deinem Browser nicht unterstützt.');
+return;
+}
+document.getElementById('locationPreview').innerText='📡 GPS-Position wird ermittelt …';
+navigator.geolocation.getCurrentPosition(async (pos)=>{
+const lat=pos.coords.latitude;
+const lon=pos.coords.longitude;
+document.getElementById('lat').value=lat.toFixed(5);
+document.getElementById('lon').value=lon.toFixed(5);
+document.getElementById('start_lat').value=lat.toFixed(5);
+document.getElementById('start_lon').value=lon.toFixed(5);
+
+try{
+const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+const d=await r.json();
+const placeName=d.address.village||d.address.town||d.address.city||d.address.municipality||'Aktueller Standort';
+document.getElementById('locationSearch').value=placeName;
+document.getElementById('locationPreview').innerText='📍 GPS: '+placeName;
+}catch(e){
+document.getElementById('locationSearch').value='Aktueller Standort';
+document.getElementById('locationPreview').innerText='📍 GPS: Aktueller Standort';
+}
+clearPeak();
+saveState();
+searchMountainsAroundStart();
+},(err)=>{
+document.getElementById('locationPreview').innerText='❌ GPS-Zugriff fehlgeschlagen.';
+alert('GPS-Standort konnte nicht abgerufen werden: '+err.message);
+},{enableHighAccuracy:true,timeout:10000});
+}
+
+async function searchLocation(){
+const q=document.getElementById('locationSearch').value.trim();
+if(!q){alert('Bitte Startort eingeben.');return;}
+document.getElementById('locationPreview').innerText='Suche Orte …';
+document.getElementById('locationResultsSelect').style.display='none';
+try {
+const r=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=8&language=de&format=json');
+const d=await r.json();
+foundLocations=d.results||[];
+const sel=document.getElementById('locationResultsSelect');
+sel.innerHTML='<option value="">-- Bitte Ort auswählen --</option>';
+foundLocations.forEach((p,i)=>{
+const o=document.createElement('option');
+o.value=i;
+o.text=p.name+' ('+[p.admin1,p.country].filter(Boolean).join(', ')+')';
+sel.appendChild(o);
+});
+if(foundLocations.length===1) setLocation(foundLocations[0]);
+else if(foundLocations.length){
+sel.style.display='block';
+document.getElementById('locationPreview').innerText='🔍 Mehrere Treffer – bitte auswählen.';
+} else document.getElementById('locationPreview').innerText='❌ Kein Ort gefunden.';
+} catch(e) {
+document.getElementById('locationPreview').innerText='❌ Ortssuche fehlgeschlagen.';
+}
+}
+
+function selectLocationFromDropdown(){
+const i=Number(document.getElementById('locationResultsSelect').value);
+if(foundLocations[i]) setLocation(foundLocations[i]);
+}
+
+function setLocation(p){
+document.getElementById('lat').value=Number(p.latitude).toFixed(5);
+document.getElementById('lon').value=Number(p.longitude).toFixed(5);
+document.getElementById('start_lat').value=Number(p.latitude).toFixed(5);
+document.getElementById('start_lon').value=Number(p.longitude).toFixed(5);
+document.getElementById('locationSearch').value=p.name||document.getElementById('locationSearch').value;
+document.getElementById('locationPreview').innerText='📍 '+p.name+' · '+(p.elevation?Math.round(p.elevation)+' m':'Höhe wird ermittelt');
+document.getElementById('locationResultsSelect').style.display='none';
+clearPeak();
+saveState();
+searchMountainsAroundStart();
+}
+
+async function searchMountainsAroundStart() {
+const lat = parseFloat(document.getElementById('lat').value);
+const lon = parseFloat(document.getElementById('lon').value);
+const startName = document.getElementById('locationSearch').value.trim();
+
+if (isNaN(lat) || isNaN(lon)) return;
+
+const loading = document.getElementById('peakLoading');
+const sel = document.getElementById('peakDropdown');
+const hint = document.getElementById('peakSearchHint');
+
+loading.style.display = 'block';
+sel.style.display = 'none';
+
+let rawPeaks = [];
+const radii = [15, 20, 30];
+let usedRadius = 15;
+
+for (const radius of radii) {
+usedRadius = radius;
+hint.innerText = `Suche Gipfel im Umkreis von ${radius} km…`;
+rawPeaks = [];
+
+try {
+const searchTerm = startName ? startName : 'Gipfel';
+const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchTerm)}&count=50&language=de&format=json`);
+if (r.ok) {
+const d = await r.json();
+if (d.results) {
+d.results.forEach(x => {
+const dist = getDistance(lat, lon, x.latitude, x.longitude);
+if (dist <= radius) {
+rawPeaks.push({
+name: x.name,
+alt: x.elevation ? Math.round(x.elevation) : null,
+lat: x.latitude,
+lon: x.longitude,
+distance: dist
+});
+}
+});
+}
+}
+} catch(e) {}
+
+if (rawPeaks.length < 5) {
+try {
+const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=peak+near+${lat},${lon}&limit=30`);
+if (nomRes.ok) {
+const nomData = await nomRes.json();
+nomData.forEach(x => {
+const pLat = parseFloat(x.lat);
+const pLon = parseFloat(x.lon);
+const dist = getDistance(lat, lon, pLat, pLon);
+if (dist <= radius) {
+rawPeaks.push({
+name: x.display_name.split(',')[0],
+alt: x.extratags && x.extratags.ele ? parseInt(x.extratags.ele) : null,
+lat: pLat,
+lon: pLon,
+distance: dist
+});
+}
+});
+}
+} catch (e) {}
+}
+
+if (rawPeaks.length > 0) break;
+}
+
+const uniquePeaks = [];
+const map = new Map();
+for (const item of rawPeaks) {
+if(!map.has(item.name)){
+map.set(item.name, true);
+uniquePeaks.push(item);
+}
+}
+
+const missingEle = uniquePeaks.filter(p => !p.alt);
+if (missingEle.length > 0) {
+try {
+const lats = missingEle.map(p => p.lat.toFixed(5)).join(',');
+const lons = missingEle.map(p => p.lon.toFixed(5)).join(',');
+const elR = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`);
+if (elR.ok) {
+const elD = await elR.json();
+const elevs = Array.isArray(elD.elevation) ? elD.elevation : [elD.elevation];
+missingEle.forEach((p, idx) => {
+if (elevs[idx] !== undefined && elevs[idx] !== null) {
+p.alt = Math.round(elevs[idx]);
+}
+});
+}
+} catch (e) {}
+}
+
+loading.style.display = 'none';
+peakCandidates = uniquePeaks.sort((a, b) => a.distance - b.distance);
+renderPeakOptions(peakCandidates, usedRadius);
+}
+
+function renderPeakOptions(peaks, radius) {
+const sel = document.getElementById('peakDropdown');
+sel.innerHTML = '<option value="">-- Gipfel auswählen --</option>';
+
+peaks.forEach((p, i) => {
+const o = document.createElement('option');
+o.value = i;
+const altStr = p.alt ? p.alt + ' m' : 'Höhe unbekannt';
+o.text = '⛰️ ' + p.name + ' (' + altStr + ') · ' + p.distance.toFixed(1) + ' km';
+sel.appendChild(o);
+});
+
+sel.style.display = peaks.length ? 'block' : 'none';
+document.getElementById('peakSearchHint').innerText = peaks.length 
+? (peaks.length + ` Gipfel im Umkreis von ${radius} km gefunden.`) 
+: 'Keine Gipfel im Umkreis bis 30 km gefunden.';
+}
+
+function selectPeakFromDropdown(){
+const i=Number(document.getElementById('peakDropdown').value);
+if(peakCandidates[i]){
+selectedPeak=peakCandidates[i];
+renderSelectedPeak();
+saveState();
+}
+}
+
+function renderSelectedPeak(){
+if(!selectedPeak)return;
+document.getElementById('peakSelected').style.display='block';
+const altStr=selectedPeak.alt?selectedPeak.alt+' m':'Höhe unbekannt';
+document.getElementById('peakSelected').innerHTML='<strong>⛰️ '+selectedPeak.name+'</strong> · '+altStr+' · '+(selectedPeak.distance?selectedPeak.distance.toFixed(1)+' km':'');
+
+const drop = document.getElementById('peakDropdown');
+if(drop){
+drop.value = '';
+}
+}
+
+function getPeakData(){
+return selectedPeak;
+}
+
+function scoreRisk(d){
+let s=0,r=[];const tourTypes=d.tourTypes||[];
+const isExposed=tourTypes.some(t=>['klettersteig','grat','hochtour','gletscher','klettern'].includes(t));
+const windFactor=isExposed?1.3:1;
+
+if(d.gust>=90){s+=60*windFactor;r.push('Sturmböen');}
+else if(d.gust>=75){s+=45*windFactor;r.push('Sehr kräftige Böen');}
+else if(d.gust>=60){s+=30*windFactor;r.push('Kräftige Böen');}
+else if(d.gust>=50){s+=15*windFactor;r.push('Böen');}
+
+if(isExposed && (d.rain>0.1 || d.prob>=40)){
+s+=40;
+r.push(tourTypes.includes('klettersteig')?'Nasser Fels / Rutschgefahr am Klettersteig':'Nässe & Rutschgefahr am Fels');
+}
+
+if(d.rain>=8){s+=45;r.push('Starkregen');}
+else if(d.rain>=4){s+=35;r.push('Starkregen');}
+else if(d.rain>=2){s+=25;r.push('Kräftiger Regen');}
+else if(d.rain>=0.2){s+=15;r.push('Regen');}
+
+if(d.prob>=75 && d.rain<0.2){s+=20;r.push('Hohe Schauerwahrscheinlichkeit');}
+else if(d.prob>=50 && d.rain<0.2){s+=10;r.push('Schauerneigung');}
+
+const snowFactor=tourTypes.some(t=>['ski','hochtour','gletscher'].includes(t))?1.2:1;
+if(d.snow>=3){s+=35*snowFactor;r.push('Deutlicher Schneefall');}
+else if(d.snow>=1){s+=25*snowFactor;r.push('Schneefall');}
+
+const thunderCode=[95,96,99].includes(d.code);
+const thunderPotential=(d.cape>=1200 && (d.prob>=30 || d.rain>=0.1 || d.code>=80));
+if(thunderCode){s+=70;r.push('Gewitter- & Blitzgefahr');}
+else if(thunderPotential){s+=45;r.push('Erhöhte Gewitterneigung');}
+else if(d.cape>=700 && (d.prob>=40 || d.rain>=0.1)){s+=25;r.push('Gewitterneigung');}
+
+if(d.vis>0&&d.vis<2000){s+=25;r.push('Stark eingeschränkte Sicht');}
+if(d.ice){s+=30;r.push('Vereisung / Glatteis');}
+if(d.temp>=26){s+=10;r.push('Hohe Hitze / Sonneneinstrahlung');}
+
+return {score:Math.min(100,Math.round(s)),reasons:[...new Set(r)]};
+}
+
+function tourWarnings(d){
+const a=[],tourTypes=d.tourTypes||[];
+const wet=(d.rain>=.05||d.prob>=35);
+const thunder=[95,96,99].includes(d.code)||(d.cape>=1000&&(d.prob>=30||d.rain>=0.1||d.code>=80));
+const wind=d.gust>=45;
+
+if(wet&&tourTypes.some(t=>['klettersteig','klettern'].includes(t)))a.push('⚠️ <strong>AKUTE NÄSSEWARNUNG:</strong> Nasser Fels verringert die Reibung drastisch. Am Klettersteig und auf steilen Felspassagen besteht erhöhte Rutsch- und Absturzgefahr!');
+else if(wet&&tourTypes.some(t=>['hochtour','gletscher','grat'].includes(t)))a.push('⚠️ <strong>Nässe & Glätte:</strong> Heikle Passagen können bei Nässe sehr gefährlich werden.');
+
+if(wind&&tourTypes.some(t=>['klettersteig','grat','hochtour','gletscher','klettern'].includes(t)))a.push('💨 <strong>Wind:</strong> Kräftige Böen an exponierten Stellen (erhöhte Windangriffsfläche).');
+if(thunder)a.push('⚡ <strong>Gewitter- & Blitzgefahr:</strong> Drahtseile auf Klettersteigen, Graten und Felswänden wirken wie Blitzableiter! Exponierte Bereiche und Gipfel frühzeitig verlassen.');
+if(d.snow>.2)a.push('❄️ <strong>Schnee:</strong> Rutschgefahr durch Neuschnee/Matsch.');
+if(d.rain>=4)a.push('🌧️ <strong>Starkregen:</strong> Mit deutlich erschwerten Bedingungen, rutschigen Wegen und eingeschränkter Sicht rechnen.');
+if(d.vis>0&&d.vis<2000)a.push('👁️ <strong>Sicht:</strong> Stark eingeschränkte Sicht – Orientierung und Navigation können erschwert sein.');
+if(d.ice && tourTypes.some(t=>['klettersteig','hochtour','grat','klettern'].includes(t)))a.push('🧊 <strong>Vereisungsgefahr:</strong> Regen oder Feuchtigkeit bei Minusgraden führt zu Glatteis/Eis auf Tritten und Stahlseilen!');
+if(d.temp>=26)a.push('☀️ <strong>Hitzewarnung:</strong> Temperaturen über 26°C. Achte auf ausreichende Flüssigkeitszufuhr und nimm genügend Trinkwasser mit!');
+
+if(tourTypes.includes('ski'))a.push('🏔️ <strong>Lawinenlage prüfen:</strong> Vor der Schitour stets den aktuellen Lawinenlagebericht beachten!');
+return a;
+}
+
+function conditionHint(d){if([95,96,99].includes(d.code))return'Gewittergefahr';if(d.snow>=1)return'Schneefall';if(d.rain>=4)return'Starkregen';if(d.rain>=.1)return'Regen / Nässe';if(d.gust>=75)return'Sturmböen';if(d.gust>=50)return'Kräftige Böen';if(d.vis>0&&d.vis<2000)return'Eingeschränkte Sicht';if(d.prob>=60)return'Hohe Schauerneigung';if(d.prob<20&&d.rain<.1&&[0,1].includes(d.code))return d.isDay?'Sonnig und trocken':'Klar und trocken';return'Trocken / Bewölkt';}
+function riskText(level){return level==='red'?'TOUR NICHT EMPFOHLEN':level==='orange'?'SCHWIERIGE BEDINGUNGEN':'GUTE & STABILE BEDINGUNGEN';}
+function riskIcon(level){return level==='red'?'🔴':level==='orange'?'🟠':'🟢';}
+
+function modelConfidence(iconHourly, ecmwfHourly, startIndex, duration, hoursAhead){
+let baseScore = 100;
+baseScore -= Math.min(25, Math.max(0, hoursAhead - 24) * 0.15);
+
+if(iconHourly && ecmwfHourly){
+let totalTempDiff = 0, totalWindDiff = 0, totalRainDiff = 0;
+let validSlots = 0;
+
+for(let i = 0; i < duration; i++){
+const idx = startIndex + i;
+if(iconHourly.temperature_2m?.[idx] !== undefined && ecmwfHourly.temperature_2m?.[idx] !== undefined){
+totalTempDiff += Math.abs(iconHourly.temperature_2m[idx] - ecmwfHourly.temperature_2m[idx]);
+totalWindDiff += Math.abs((iconHourly.wind_gusts_10m?.[idx]||0) - (ecmwfHourly.wind_gusts_10m?.[idx]||0));
+totalRainDiff += Math.abs((iconHourly.precipitation?.[idx]||0) - (ecmwfHourly.precipitation?.[idx]||0));
+validSlots++;
+}
+}
+
+if(validSlots > 0){
+const avgTempDiff = totalTempDiff / validSlots;
+const avgWindDiff = totalWindDiff / validSlots;
+const avgRainDiff = totalRainDiff / validSlots;
+
+baseScore -= (avgTempDiff * 3);
+baseScore -= (avgWindDiff * 0.5);
+baseScore -= (avgRainDiff * 8);
+}
+}
+
+const pct = Math.max(25, Math.min(98, Math.round(baseScore)));
+let text = 'Hohe Einstimmigkeit zwischen ICON-D2/Seamless & ECMWF IFS.';
+if(pct < 60) text = 'Erhöhte Modell-Abweichungen (ICON vs. ECMWF). Wetterlage ist unsicher!';
+else if(pct < 80) text = 'Moderate Einstimmigkeit der Wettermodelle. Lokale Abweichungen möglich.';
+
+return { pct, text };
+}
+
+function windDir(deg){if(!Number.isFinite(deg))return'–';const dirs=['N','NO','O','SO','S','SW','W','NW'];return dirs[Math.round(deg/45)%8];}
+
+let liveTourTimer=null, liveGpsWatch=null, liveStartTimer=null;
+let liveTourActive=false, liveLastAlertKey='', liveLastUpdate=0, liveLastPosition=null;
+
+const LIVE_DIRS=[
+{name:'N',lat:1,lon:0},{name:'NO',lat:.7071,lon:.7071},{name:'O',lat:0,lon:1},
+{name:'SO',lat:-.7071,lon:.7071},{name:'S',lat:-1,lon:0},{name:'SW',lat:-.7071,lon:-.7071},
+{name:'W',lat:0,lon:-1},{name:'NW',lat:.7071,lon:.7071}
+];
+
+function liveFormatTime(iso){
+const d=new Date(iso);
+return d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+}
+function liveMinutesUntil(iso){
+return Math.max(0,Math.round((new Date(iso)-new Date())/60000));
+}
+function liveDirectionName(name){
+return {N:'Norden',NO:'Nordosten',O:'Osten',SO:'Südosten',S:'Süden',SW:'Südwesten',W:'Westen',NW:'Nordwesten'}[name]||name;
+}
+function liveIsTourWindow(){
+const start=document.getElementById('startTime').value;
+const duration=Number(document.getElementById('duration').value||0);
+if(!start||!duration)return false;
+const a=new Date(start), b=new Date(a.getTime()+duration*3600000), now=new Date();
+return now>=a && now<=b;
+}
+function liveShowStatus(html, cls=''){
+const el=document.getElementById('liveTourBox');
+if(el) el.innerHTML=html;
+if(el){el.className='live-tour-box '+cls;}
+}
+function liveCreateBox(){
+const results=document.getElementById('results');
+if(!results)return;
+let box=document.getElementById('liveTourBox');
+if(!box){
+box=document.createElement('div');
+box.id='liveTourBox';
+box.className='live-tour-box';
+results.prepend(box);
+}
+return box;
+}
+function liveRequestNotificationPermission(){
+if('Notification' in window && Notification.permission==='default'){
+Notification.requestPermission().catch(()=>{});
+}
+}
+function liveNotify(title,text){
+if('Notification' in window && Notification.permission==='granted'){
+try{
+navigator.serviceWorker.ready.then(reg => {
+reg.showNotification(title, { body: text, tag: 'bergwetter-live', data: { url: window.location.href } });
+});
+}catch(e){}
+}
+}
+function liveDistancePoint(lat,lon,dir,km=8){
+const dLat=(km/111.32)*dir.lat;
+const dLon=(km/(111.32*Math.max(.2,Math.cos(lat*Math.PI/180))))*dir.lon;
+return [lat+dLat,lon+dLon];
+}
+async function fetchGeoSphereNowcast(lat,lon){
+const url='https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nowcast-v1-15min-1km?lat_lon='+
+encodeURIComponent(lat.toFixed(5)+','+lon.toFixed(5))+
+'&parameters=rr&forecast_offset=0&output_format=geojson';
+const r=await fetch(url,{cache:'no-store'});
+if(!r.ok)throw new Error('GeoSphere Nowcast HTTP '+r.status);
+return r.json();
+}
+
+async function fetchGeoSphereNowcastPoints(points){
+const url='https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nowcast-v1-15min-1km?'+
+points.map(p=>'lat_lon='+encodeURIComponent(p.lat.toFixed(5)+','+p.lon.toFixed(5))).join('&')+
+'&parameters=rr&forecast_offset=0&output_format=geojson';
+const r=await fetch(url,{cache:'no-store'});
+if(!r.ok)throw new Error('GeoSphere Nowcast HTTP '+r.status);
+return r.json();
+}
+function parseGeoSphereSeries(data){
+const f=data?.features?.[0];
+const p=f?.properties?.parameters?.rr;
+if(!p)return {times:[],values:[]};
+return {times:p.timestamps||p.time||[],values:p.data||[]};
+}
+function parseGeoSpherePointSeries(data,index){
+const f=data?.features?.[index];
+const p=f?.properties?.parameters?.rr;
+if(!p)return {times:[],values:[]};
+return {times:p.timestamps||p.time||[],values:p.data||[]};
+}
+async function fetchLiveCenter(lat,lon){
+const currentUrl='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
+'&current=temperature_2m,apparent_temperature,precipitation,rain,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m'+
+'&timezone=auto&wind_speed_unit=kmh';
+const [c,n]=await Promise.all([
+fetch(currentUrl,{cache:'no-store'}),
+fetchGeoSphereNowcast(lat,lon).catch(()=>null)
+]);
+if(!c.ok)throw new Error('Live-Wetter HTTP '+c.status);
+const current=(await c.json()).current||{};
+const nc=n?parseGeoSphereSeries(await n.json()):{times:[],values:[]};
+return {current,nc};
+}
+async function fetchLiveDirectionSamples(lat,lon){
+const points=[];
+LIVE_DIRS.forEach(d=>{
+[4,8].forEach(km=>{
+const [pLat,pLon]=liveDistancePoint(lat,lon,d,km);
+points.push({dir:d.name,km,lat:pLat,lon:pLon});
+});
+});
+const j=await fetchGeoSphereNowcastPoints(points);
+let thunder=[];
+try{
+const u='https://api.open-meteo.com/v1/forecast?latitude='+points.map(p=>p.lat.toFixed(5)).join(',')+
+'&longitude='+points.map(p=>p.lon.toFixed(5)).join(',')+
+'&hourly=weather_code&forecast_hours=4&timezone=UTC';
+const r=await fetch(u,{cache:'no-store'});
+if(r.ok){
+const x=await r.json(); thunder=Array.isArray(x)?x:[x];
+}
+}catch(e){thunder=[];}
+return points.map((p,i)=>{
+const nc=parseGeoSpherePointSeries(j,i);
+const wx=thunder[i]?.hourly||{};
+return {...p,nc,wx,thunderAt(time){
+const ts=wx.time||[]; const codes=wx.weather_code||[];
+if(!time||!ts.length)return false;
+const target=new Date(time).getTime(); let best=-1,bestDiff=Infinity;
+for(let k=0;k<ts.length;k++){const diff=Math.abs(new Date(ts[k]).getTime()-target);if(diff<bestDiff){bestDiff=diff;best=k;}}
+return best>=0 && bestDiff<=90*60000 && [95,96,99].includes(Number(codes[best]));
+}};
+}).filter(s=>s.nc.times.length);
+}
+
+function liveFindOnset(series,threshold=.08){
+for(let i=0;i<series.values.length;i++){
+const v=Number(series.values[i]||0);
+const next=Number(series.values[i+1]||0);
+if(v>=threshold && (next>=threshold || i===series.values.length-1)){
+return {idx:i,time:series.times?.[i],amount:v};
+}
+}
+return null;
+}
+
+function liveFindArrival(centerSeries,samples){
+const threshold=.08;
+const centerOnset=liveFindOnset(centerSeries,threshold);
+if(centerOnset){
+return {kind:'now',time:centerOnset.time,direction:null,amount:centerOnset.amount,confidence:'hoch'};
+}
+const grouped={};
+samples.forEach(s=>{(grouped[s.dir] ||= {})[s.km]=s;});
+const candidates=[];
+Object.keys(grouped).forEach(dir=>{
+const s4=grouped[dir][4], s8=grouped[dir][8];
+if(!s4||!s8)return;
+const o4=liveFindOnset(s4.nc,threshold), o8=liveFindOnset(s8.nc,threshold);
+if(!o4||!o8||!o4.time||!o8.time)return;
+const t4=new Date(o4.time).getTime(), t8=new Date(o8.time).getTime();
+const dt=t4-t8;
+if(dt<=0 || dt<15*60000 || dt>180*60000)return;
+const speedKmh=4/(dt/3600000);
+if(speedKmh<2 || speedKmh>100)return;
+const etaMs=t4-(4/speedKmh)*3600000;
+const now=Date.now();
+if(etaMs<now-15*60000 || etaMs>now+3*3600000)return;
+const thunder = Boolean(s4.thunderAt?.(o4.time) || s8.thunderAt?.(o4.time));
+candidates.push({
+kind:'incoming',time:new Date(etaMs).toISOString(),direction:dir,
+amount:Math.max(o4.amount,o8.amount),speedKmh,confidence:'hoch',thunder,
+source4:o4.time,source8:o8.time
+});
+});
+if(!candidates.length){
+const fallback=[];
+Object.keys(grouped).forEach(dir=>{
+const s4=grouped[dir][4];
+if(!s4)return;
+const o4=liveFindOnset(s4.nc,threshold);
+if(!o4||!o4.time)return;
+const mins=Math.round((new Date(o4.time)-new Date())/60000);
+if(mins>=0 && mins<=120)fallback.push({kind:'incoming',time:o4.time,direction:dir,amount:o4.amount,confidence:'mittel',thunder:Boolean(s4.thunderAt?.(o4.time))});
+});
+if(!fallback.length)return null;
+fallback.sort((a,b)=>new Date(a.time)-new Date(b.time));
+return fallback[0];
+}
+candidates.sort((a,b)=>new Date(a.time)-new Date(b.time));
+return candidates[0];
+}
+
+async function updateLiveTourWeather(){
+if(!liveTourActive || !liveIsTourWindow()){stopLiveTourWeather();return;}
+const box=liveCreateBox();
+if(!box)return;
+
+const lat=Number(document.getElementById('lat').value);
+const lon=Number(document.getElementById('lon').value);
+
+if(!Number.isFinite(lat)||!Number.isFinite(lon)){
+liveShowStatus('<div class="live-tour-head"><strong>📡 Live-Tour-Wetter</strong><span class="live-muted">kein Standort</span></div>GPS-Position konnte nicht bestimmt werden.');
+return;
+}
+
+const currentToken = localStorage.getItem('fcm_token');
+const isActive = localStorage.getItem('tour_push_active') === 'true';
+
+if(isActive && currentToken && Number.isFinite(lat) && Number.isFinite(lon)) {
+try {
+await db.collection('tour_subscriptions').doc(currentToken).update({
+lat: lat,
+lon: lon,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+});
+} catch(err) {
+// Fallback: Falls Dokument durch Token-Wechsel auf Firestore-Seite noch nicht existiert
+try {
+const startPlace = document.getElementById('locationSearch').value || 'Startort';
+const peak = getPeakData();
+const tourTitle = startPlace + (peak?.name ? ' → ' + peak.name : '');
+await db.collection('tour_subscriptions').doc(currentToken).set({
+token: currentToken,
+tourTitle: tourTitle,
+lat: lat,
+lon: lon,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+} catch(e) {
+console.error("Live-Koordinaten Fallback-Fehler:", e);
+}
+}
+}
+
+try{
+liveShowStatus('<div class="live-tour-head"><strong>📡 Live-Tour-Wetter</strong><span class="live-muted">aktualisiere …</span></div>Aktuelle Messung und 3-Stunden-Nowcast werden abgeglichen …');
+const center=await fetchLiveCenter(lat,lon);
+const samples=await fetchLiveDirectionSamples(lat,lon);
+const arrival=liveFindArrival(center.nc,samples);
+const c=center.current;
+const rainNow=Number(c.rain||0);
+const gust=Number(c.wind_gusts_10m||0);
+let html='<div class="live-tour-head"><strong><span class="live-dot"></span>Live-Tour-Wetter</strong><span class="live-muted">Stand '+new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'</span></div>';
+html+='<div class="live-row"><span>🌡️ '+(Number.isFinite(Number(c.temperature_2m))?Number(c.temperature_2m).toFixed(1):'–')+' °C</span><span>🌧️ Regen jetzt: '+rainNow.toFixed(1)+' mm</span></div>';
+html+='<div class="live-row"><span>💨 Böen: '+(Number.isFinite(gust)?Math.round(gust):'–')+' km/h</span><span>📍 GPS-Live aktiv</span></div>';
+if(arrival){
+const mins=liveMinutesUntil(arrival.time);
+const thunder=Boolean(arrival.thunder);
+if(arrival.kind==='now'){
+html+='<div style="margin-top:9px"><strong>'+ (thunder?'⚡ Gewitter-/Regenzelle':'🌧️ Regenzelle') +' erreicht den Standort jetzt.</strong></div>';
+const key='now-'+Math.floor(Date.now()/900000);
+if(key!==liveLastAlertKey){liveNotify(thunder?'⚡ Gewitterzelle am Standort':'🌧️ Regen am Standort','Aktueller Niederschlag wird am Tourstandort erfasst.');liveLastAlertKey=key;}
+liveShowStatus(html,thunder?'live-danger':'live-alert');
+}else{
+html+='<div style="margin-top:9px"><strong>'+ (thunder?'⚡ Gewitterzelle kommt':'🌧️ Regen kommt') +'</strong><br>Aus Richtung <strong>'+liveDirectionName(arrival.direction)+'</strong> · voraussichtlich in <strong>'+mins+' Min.</strong> (ca. '+liveFormatTime(arrival.time)+' Uhr)'+(arrival.speedKmh?'<br><span class="live-muted">Geschätzte Frontgeschwindigkeit: '+Math.round(arrival.speedKmh)+' km/h · '+(arrival.confidence==='hoch'?'gute':'mittlere')+' Nowcast-Sicherheit</span>':'<br><span class="live-muted">Nowcast-basierte Näherung · keine exakte Zell-ETA</span>')+'.</div>';
+const key=arrival.direction+'-'+arrival.time.slice(0,16);
+if(key!==liveLastAlertKey && mins<=60){
+liveNotify(thunder?'⚡ Gewitterzelle kommt':'🌧️ Regen kommt','Aus Richtung '+liveDirectionName(arrival.direction)+' · voraussichtlich in ca. '+mins+' Minuten.');
+liveLastAlertKey=key;
+}
+liveShowStatus(html,thunder?'live-danger':'live-alert');
+}
+}else{
+html+='<div style="margin-top:9px"><strong>✅ Aktuell keine Niederschlagszelle im unmittelbaren Nowcast.</strong></div>';
+liveShowStatus(html);
+}
+liveLastUpdate=Date.now();
+}catch(e){
+liveShowStatus('<div class="live-tour-head"><strong>📡 Live-Tour-Wetter</strong><span class="live-muted">vorübergehend nicht verfügbar</span></div>Live-Daten konnten gerade nicht abgerufen werden.');
+}
+}
+
+function startLiveTourWeather(){
+if(!liveIsTourWindow())return;
+liveTourActive=true;
+liveRequestNotificationPermission();
+liveCreateBox();
+if(liveGpsWatch===null && navigator.geolocation){
+liveGpsWatch=navigator.geolocation.watchPosition(pos=>{
+const newLat = pos.coords.latitude;
+const newLon = pos.coords.longitude;
+liveLastPosition={lat: newLat, lon: newLon};
+document.getElementById('lat').value = newLat.toFixed(5);
+document.getElementById('lon').value = newLon.toFixed(5);
+
+if(Date.now()-liveLastUpdate>120000)updateLiveTourWeather();
+},err=>{
+console.error("Live GPS Watch Fehler:", err);
+},{enableHighAccuracy:true,maximumAge:10000,timeout:15000});
+}
+updateLiveTourWeather();
+clearInterval(liveTourTimer);
+liveTourTimer=setInterval(updateLiveTourWeather,5*60*1000);
+}
+
+function stopLiveTourWeather(){
+liveTourActive=false;
+clearInterval(liveTourTimer); liveTourTimer=null;
+clearTimeout(liveStartTimer); liveStartTimer=null;
+if(liveGpsWatch!==null && navigator.geolocation){navigator.geolocation.clearWatch(liveGpsWatch);liveGpsWatch=null;}
+const box=document.getElementById('liveTourBox');
+if(box)box.remove();
+}
+
+function scheduleLiveTourWeather(){
+stopLiveTourWeather();
+const startStr=document.getElementById('startTime').value;
+const duration=Number(document.getElementById('duration').value||0);
+if(!startStr||!duration)return;
+const start=new Date(startStr), now=new Date(), delay=start-now;
+if(delay<=0 && liveIsTourWindow()) startLiveTourWeather();
+else if(delay>0 && delay<2147483647){
+liveStartTimer=setTimeout(startLiveTourWeather,delay);
+}
+}
+
+async function analyzeRisk(){
+// Erzwinge vor der Analyse einen kurzen GPS-Abgleich, falls verfügbar
+if (navigator.geolocation) {
+   document.getElementById('results').innerHTML='<div class="loading" style="text-align:center;padding:15px;color:#64748b;">📍 Ermittle aktuelle GPS-Position für die Analyse …</div>';
+   try {
+       const pos = await new Promise((resolve, reject) => {
+           navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy: true, timeout: 5000, maximumAge: 0});
+       });
+       const currentLat = pos.coords.latitude;
+       const currentLon = pos.coords.longitude;
+       document.getElementById('lat').value = currentLat.toFixed(5);
+       document.getElementById('lon').value = currentLon.toFixed(5);
+       if(!document.getElementById('start_lat').value) {
+           document.getElementById('start_lat').value = currentLat.toFixed(5);
+           document.getElementById('start_lon').value = currentLon.toFixed(5);
+       }
+   } catch(err) {
+       console.log("GPS-Abruf beim Analysieren fehlgeschlagen, nutze gespeicherte Koordinaten:", err.message);
+   }
+}
+
+const lat=Number(document.getElementById('start_lat').value) || Number(document.getElementById('lat').value);
+const lon=Number(document.getElementById('start_lon').value) || Number(document.getElementById('lon').value);
+const startStr=document.getElementById('startTime').value;
+const duration=Number(document.getElementById('duration').value);
+const selectedTourTypes = getSelectedTourTypes();
+let peak=getPeakData();
+
+if(!Number.isFinite(lat)||!Number.isFinite(lon)||!startStr){alert('Bitte Startort und Startzeit angeben.');return;}
+
+// Falls Push aktiv ist, bei jedem Wetter-Check direkt Firestore aktualisieren
+const currentToken = localStorage.getItem('fcm_token');
+const isActivePush = localStorage.getItem('tour_push_active') === 'true';
+if (isActivePush && currentToken) {
+  const startPlace = document.getElementById('locationSearch').value || 'Startort';
+  const tourTitle = startPlace + (peak?.name ? ' → ' + peak.name : '');
+  try {
+      await db.collection('tour_subscriptions').doc(currentToken).set({
+          token: currentToken,
+          tourTitle: tourTitle,
+          lat: (peak && peak.lat) ? peak.lat : lat,
+          lon: (peak && peak.lon) ? peak.lon : lon,
+          start_lat: Number(document.getElementById('start_lat').value) || lat,
+          start_lon: Number(document.getElementById('start_lon').value) || lon,
+          peak_name: peak?.name || '',
+          peak_lat: peak?.lat || null,
+          peak_lon: peak?.lon || null,
+          peak_alt: peak?.alt || null,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+  } catch(err) {
+      console.error("Firestore Update Fehler beim Wetter Check:", err);
+  }
+}
+
+document.getElementById('results').innerHTML='<div class="loading" style="text-align:center;padding:15px;color:#64748b;">🌦️ Wettermodelle (ICON & ECMWF) werden abgeglichen …</div>';
+
+if(peak && peak.lat && peak.lon && !peak.alt){
+try{
+const elR=await fetch('https://api.open-meteo.com/v1/elevation?latitude='+peak.lat+'&longitude='+peak.lon);
+const elD=await elR.json();
+if(elD.elevation?.[0]) peak.alt = Math.round(elD.elevation[0]);
+}catch(e){}
+}
+
+const startDt=new Date(startStr);
+const endDt=new Date(startDt.getTime()+duration*3600000);
+const hoursAhead=(startDt-new Date())/3600000;
+
+try{
+const date=startDt.toLocaleDateString('sv-SE'),endDate=endDt.toLocaleDateString('sv-SE');
+const vars='is_day,temperature_2m,apparent_temperature,precipitation,rain,snowfall,weather_code,precipitation_probability,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cape,snowfall_height';
+const primaryModel=(hoursAhead<=48?'icon_d2':'icon_seamless');
+
+const iconUrl='latitude='+lat+'&longitude='+lon+'&hourly='+vars+'&daily=sunrise,sunset,daylight_duration&start_date='+date+'&end_date='+endDate+'&timezone=auto&wind_speed_unit=kmh&models='+primaryModel;
+const ecmwfUrl='latitude='+lat+'&longitude='+lon+'&hourly='+vars+'&start_date='+date+'&end_date='+endDate+'&timezone=auto&wind_speed_unit=kmh&models=ecmwf_ifs025';
+
+let peakUrl=null;
+if(peak&&Number.isFinite(peak.lat)&&Number.isFinite(peak.lon)){
+peakUrl='https://api.open-meteo.com/v1/forecast?latitude='+peak.lat+'&longitude='+peak.lon+'&hourly='+vars+'&start_date='+date+'&end_date='+endDate+'&timezone=auto&wind_speed_unit=kmh&models='+primaryModel+(peak.alt?'&elevation='+peak.alt:'');
+}
+
+const [baseR, ecmwfR, peakR, elevR] = await Promise.all([
+fetch('https://api.open-meteo.com/v1/forecast?'+iconUrl),
+fetch('https://api.open-meteo.com/v1/forecast?'+ecmwfUrl),
+peakUrl ? fetch(peakUrl) : Promise.resolve(null),
+fetch('https://api.open-meteo.com/v1/elevation?latitude='+lat+'&longitude='+lon)
+]);
+
+if(!baseR.ok || !ecmwfR.ok || !elevR.ok) throw new Error('Fehler beim Abrufen der Wetter-Endpunkte.');
+
+const data=await baseR.json(), ecmwfData=await ecmwfR.json(), pData=peakR&&peakR.ok?await peakR.json():null, elevD=await elevR.json();
+const baseElev=Number(elevD.elevation?.[0]||0);
+
+const sunsetStr = data.daily?.sunset?.[0];
+const sunsetDt = sunsetStr ? new Date(sunsetStr) : null;
+const isAfterSunset = sunsetDt && (endDt > sunsetDt);
+
+const h=data.hourly,times=h.time||[];
+const targetMs=startDt.getTime();
+let idx=0, bestDelta=Infinity;
+times.forEach((x,i)=>{const delta=Math.abs(new Date(x).getTime()-targetMs);if(delta<bestDelta){bestDelta=delta;idx=i;}});
+
+let liveBlend=null;
+if(liveIsTourWindow()){
+try{ liveBlend=await fetchLiveCenter(lat,lon); }catch(e){}
+}
+
+let maxScore=-1,worstReason='',slots='',allWarn=[];
+const pH=pData?.hourly;
+const hasPeakAlt = peak && Number.isFinite(peak.alt) && peak.alt > 0;
+
+for(let i=0;i<duration;i++){
+const bi=idx+i; if(bi>=times.length)break;
+const t=times[bi];
+let temp=Number(h.temperature_2m?.[bi]??0),feel=Number(h.apparent_temperature?.[bi]??temp),rain=Number(h.precipitation?.[bi]??0),snow=Number(h.snowfall?.[bi]??0),gust=Number(h.wind_gusts_10m?.[bi]??0),wind=Number(h.wind_speed_10m?.[bi]??0),dir=Number(h.wind_direction_10m?.[bi]??0),prob=Number(h.precipitation_probability?.[bi]??0),cape=Number(h.cape?.[bi]??0),vis=Number(h.visibility?.[bi]??0),code=Number(h.weather_code?.[bi]??0),snowHeight=Number(h.snowfall_height?.[bi]??0),cloud=Number(h.cloud_cover?.[bi]??0),isDay=Number(h.is_day?.[bi]??1);
+
+if(liveBlend?.nc?.times?.length){
+const hourStart=new Date(t).getTime(), hourEnd=hourStart+3600000;
+let nowRain=0;
+liveBlend.nc.times.forEach((ts,k)=>{const ms=new Date(ts).getTime();if(ms>=hourStart&&ms<hourEnd)nowRain+=Number(liveBlend.nc.values?.[k]||0);});
+if(nowRain>0){rain=Math.max(rain,nowRain);prob=Math.max(prob,Math.min(100,Math.round(35+nowRain*25)));}
+}
+if(liveBlend?.current && Math.abs(new Date(t)-new Date())<45*60000){
+const lc=liveBlend.current;
+if(Number.isFinite(Number(lc.temperature_2m)))temp=Number(lc.temperature_2m);
+if(Number.isFinite(Number(lc.wind_speed_10m)))wind=Number(lc.wind_speed_10m);
+if(Number.isFinite(Number(lc.wind_gusts_10m)))gust=Number(lc.wind_gusts_10m);
+if(Number.isFinite(Number(lc.rain)))rain=Math.max(rain,Number(lc.rain));
+}
+
+let ptemp = pH ? Number(pH.temperature_2m?.[bi]) : (hasPeakAlt ? temp - ((peak.alt - baseElev)/100 * 0.65) : null);
+let pwind = pH ? Number(pH.wind_speed_10m?.[bi]) : (hasPeakAlt ? wind * 1.25 : null);
+let pgust = pH ? Number(pH.wind_gusts_10m?.[bi]) : (hasPeakAlt ? gust * 1.2 : gust);
+
+let pfeel = null;
+if (pH && pH.apparent_temperature?.[bi] !== undefined) {
+pfeel = Number(pH.apparent_temperature[bi]);
+} else if (hasPeakAlt && Number.isFinite(ptemp)) {
+if (ptemp <= 10 && pwind >= 4.8) {
+pfeel = 13.12 + 0.6215 * ptemp - 11.37 * Math.pow(pwind, 0.16) + 0.3965 * ptemp * Math.pow(pwind, 0.16);
+} else {
+pfeel = ptemp - ((peak.alt - baseElev)/100 * 0.4);
+}
+}
+
+const useGust=Number.isFinite(pgust)?pgust:gust;
+const isFreezing = hasPeakAlt ? (snowHeight <= peak.alt || ptemp <= 1) : (snowHeight <= baseElev || temp <= 1);
+const isIceRisk = isFreezing && (snow > 0 || rain > 0.05);
+
+const risk=scoreRisk({rain,gust:useGust,cape,code,prob,vis,snow,temp,tourTypes:selectedTourTypes,ice:isIceRisk});
+
+if(risk.score>maxScore){maxScore=risk.score;worstReason=risk.reasons[0]||'';}
+allWarn.push(...tourWarnings({rain,snow,gust:useGust,cape,code,temp,tourTypes:selectedTourTypes,ice:isIceRisk}));
+
+const hint=conditionHint({rain,snow,gust:useGust,prob,code,isDay});
+const dirTxt=windDir(dir);
+
+const peakBox=hasPeakAlt?'<div><div class="weather-box-title">⛰️ Gipfel ('+Math.round(peak.alt)+' m)</div>🌡️ '+(Number.isFinite(ptemp)?ptemp.toFixed(1):'–')+' °C (gef. '+(Number.isFinite(pfeel)?pfeel.toFixed(1):'–')+' °C)<br>💨 '+(Number.isFinite(pwind)?Math.round(pwind):'–')+' km/h (Böen '+(Number.isFinite(pgust)?Math.round(pgust):'–')+' km/h)<br>🧭 '+dirTxt+'<br>🌦️ '+hint+'<br>🌧️ '+rain.toFixed(1)+' mm · '+Math.round(prob)+' % Regenwahrscheinlichkeit</div>':'';
+
+const cls=risk.score>=60?'status-red':risk.score>=30?'status-orange':'status-green';
+const splitCls = hasPeakAlt ? '' : ' single-col';
+
+slots+='<div class="slot '+cls+'"><div style="display:flex;justify-content:space-between"><strong>⏱️ '+t.replace('T',' ')+' Uhr</strong></div><div class="weather-split'+splitCls+'"><div><div class="weather-box-title">📍 Start ('+Math.round(baseElev)+' m)</div>🌡️ '+temp.toFixed(1)+' °C (gef. '+feel.toFixed(1)+' °C)<br>💨 '+Math.round(wind)+' km/h (Böen '+Math.round(gust)+' km/h)<br>🧭 '+dirTxt+'<br>🌦️ '+hint+'<br>🌧️ '+rain.toFixed(1)+' mm · '+Math.round(prob)+' % Regenwahrscheinlichkeit</div>'+peakBox+'</div><div style="font-size:11px">Bewölkung '+Math.round(cloud)+'% · Schneefallgrenze '+Math.round(snowHeight)+' m</div></div>';
+}
+
+const overall=maxScore>=60?'red':maxScore>=30?'orange':'green';
+const tourName=selectedTourTypes.length ? selectedTourTypes.map(t => TOUR_NAMES[t]).join(' + ') : 'Wetteranalyse';
+const conf=modelConfidence(h, ecmwfData?.hourly, idx, duration, hoursAhead);
+
+let warnings=[...new Set(allWarn)];
+const summary=worstReason||((maxScore<30)?'Gute und stabile Bedingungen':'Wetterbedingungen aufmerksam beobachten.');
+
+const tourMonth = startDt.getMonth();
+const isWinterSeason = (tourMonth >= 10 || tourMonth <= 4);
+const startHour = startDt.getHours();
+const isHighTourOrGlacier = selectedTourTypes.some(t => ['hochtour', 'gletscher'].includes(t));
+
+let html='<div style="font-weight:700;color:var(--primary);margin-bottom:8px;font-size:16px">📍 '+(document.getElementById('locationSearch').value||'Startpunkt')+(peak?' → ⛰️ '+(peak.name||'Gipfel'):'')+'</div>';
+html+='<div class="tour-specs-header">📅 <strong>Datum:</strong> '+startDt.toLocaleDateString('de-DE')+' | ⏱️ <strong>Start:</strong> '+startDt.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' Uhr ('+duration+' Std.)<br>🥾 <strong>Tour:</strong> '+tourName+'</div>';
+
+if (isHighTourOrGlacier && startHour >= 7) {
+html+='<div class="warning-box" style="background:#eff6ff;border-color:#3b82f6;color:#1e3a8a;">⏰ <strong>Frühstart-Empfehlung:</strong> Bei Hochtouren und Gletschertouren wird ein Start zwischen <strong>03:00 und 06:00 Uhr</strong> dringend empfohlen! Spätere Starts bergen stark erhöhte Steinschlaggefahr durch ausapernden Fels, weichen Schnee und aufkommendes Gewitterrisiko am Nachmittag.</div>';
+}
+
+if(isAfterSunset && sunsetDt) {
+const sunsetTimeStr = sunsetDt.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+html+='<div class="warning-box" style="background:#fefce8;border-color:#fef08a;color:#854d0e;">🔦 <strong>Dunkelheitswarnung:</strong> Die Tour endet voraussichtlich nach Sonnenuntergang ('+sunsetTimeStr+' Uhr). <strong>Stirnlampe mitnehmen!</strong></div>';
+}
+
+html+='<div class="risk-hero risk-'+overall+'"><div class="risk-icon">'+riskIcon(overall)+'</div><div class="risk-title">'+riskText(overall)+'</div><div class="risk-summary"><strong>Hinweis:</strong> '+summary+'</div></div>';
+
+if (isWinterSeason) {
+html+='<a href="https://lawinen.at/" target="_blank" class="link-button" style="background:#0284c7;margin-bottom:8px;"><span>🏔️ Lawinenwarndienst</span><span>Öffnen ↗</span></a>';
+}
+
+html+='<a href="https://www.windy.com/?rain,'+lat+','+lon+',11" target="_blank" class="link-button" style="background:#0f766e;margin-bottom:12px;"><span>🌧️ Live Regenradar & Wind (Windy)</span><span>Öffnen ↗</span></a>';
+
+html+='<div class="trend-box '+(conf.pct<60?'trend-danger':conf.pct<80?'trend-warn':'trend-good')+'"><strong>Prognosesicherheit: '+conf.pct+'%</strong><br><span style="font-size:11px">'+conf.text+' Die Prozentzahl ist ein berechneter Modellübereinstimmungswert, keine Garantie.</span></div>';
+
+if(warnings.length)html+='<div class="warning-box" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;">'+[...new Set(warnings)].join('<br><br>')+'</div>';
+
+html+=slots;
+html+='<button type="button" class="share-btn" onclick="triggerShare()">🔗 Tour-Wetter teilen</button><button type="button" class="export-btn" onclick="window.print()">📄 Als PDF / Druckversion speichern</button>';
+
+document.getElementById('results').innerHTML=html;
+
+const pushBtn = document.getElementById('pushToggleBtn');
+pushBtn.style.display = 'block';
+
+document.getElementById('results').scrollIntoView({behavior:'smooth'});
+saveState();
+}catch(e){
+document.getElementById('results').innerHTML='<div class="warning-box">❌ Fehler beim Abrufen der Wetterdaten. Bitte Eingaben prüfen.</div>';
+}
+}
+
+async function triggerShare(){
+const text='🏔️ Bergtouren Wetter-Check: '+(document.getElementById('locationSearch').value||'Tour');
+if(navigator.share){try{await navigator.share({title:'Bergtouren Wetter-Check',text});}catch(e){}}
+else window.open('https://api.whatsapp.com/send?text='+encodeURIComponent(text),'_blank');
+}
+
+window.addEventListener('DOMContentLoaded',()=>{
+updateFavoritesDropdown();
+setNowTime();
+updatePushStatusUI();
+
+document.getElementById('gpxStatus').innerText = '';
+
+// Eingabefelder bewusst leer lassen beim Start (kein automatisches Wiederherstellen von alten Feldern),
+// stattdessen kann bei Bedarf der "aktive Tour laden"-Button genutzt werden.
+clearPeak();
+
+['startTime','duration'].forEach(id=>{
+const el = document.getElementById(id);
+if(el) el.addEventListener('input', scheduleLiveTourWeather);
+});
+});
+</script>
+</body>
+</html>
