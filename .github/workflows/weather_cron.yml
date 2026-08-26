@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests firebase-admin google-api-core==2.34.0
+          pip install requests firebase-admin google-api-core==2.34.0 pytz
 
       - name: Run weather check script
         env:
