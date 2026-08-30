@@ -1749,7 +1749,67 @@ function renderGpxEditMarkers() {
      showToast(`✏️ ${coords.length} Trackpunkte - zeige ${handleIndices.length} Anfasspunkte zur Bearbeitung.`);
  }
 
- handleIndices.forEach(index => {
+function buildEditPointPopup(coords, index) {
+ const popupContent = document.createElement('div');
+ popupContent.style.color = '#111';
+ popupContent.style.fontSize = '12px';
+ popupContent.style.minWidth = '180px';
+ popupContent.innerHTML = `
+     <strong>Punkt #${index + 1} / ${coords.length}</strong><br>
+     <button class="trim-start-btn" style="background:#f59e0b; color:white; border:none; padding:5px 10px; border-radius:4px; margin-top:6px; cursor:pointer; font-size:10px; font-weight:bold; width:100%;">✂️ Bis hier entfernen (Start kürzen)</button>
+     <button class="truncate-trackpoint-btn" style="background:#f59e0b; color:white; border:none; padding:5px 10px; border-radius:4px; margin-top:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%;">✂️ Ab hier kürzen (Ende kürzen)</button>
+     <button class="delete-trackpoint-btn" style="background:#ef4444; color:white; border:none; padding:5px 10px; border-radius:4px; margin-top:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%;">🗑️ Nur diesen Punkt löschen</button>
+ `;
+
+ popupContent.querySelector('.trim-start-btn').addEventListener('click', () => {
+     if (index === 0) { showToast("⚠️ Das ist bereits der Startpunkt."); return; }
+     if (confirm(`Alles VOR Punkt #${index + 1} entfernen (neuer Start)?`)) {
+         const newCoords = coords.slice(index);
+         updateEditedTrack(newCoords);
+         renderGpxEditMarkers();
+         showToast(`✂️ Track-Start auf Punkt #${index + 1} gesetzt.`);
+     }
+ });
+
+ popupContent.querySelector('.truncate-trackpoint-btn').addEventListener('click', () => {
+     if (confirm(`Möchtest du den Track bei Punkt #${index + 1} abschneiden (alles danach entfernen)?`)) {
+         const newCoords = coords.slice(0, index + 1);
+         updateEditedTrack(newCoords);
+         renderGpxEditMarkers();
+         showToast(`✂️ Track bei Punkt #${index + 1} gekürzt.`);
+     }
+ });
+
+ popupContent.querySelector('.delete-trackpoint-btn').addEventListener('click', () => {
+     if (coords.length <= 2) {
+         showToast("⚠️ Mindestens 2 Punkte erforderlich.");
+         return;
+     }
+     const newCoords = coords.slice(0, index).concat(coords.slice(index + 1));
+     updateEditedTrack(newCoords);
+     renderGpxEditMarkers();
+     showToast(`🗑️ Punkt #${index + 1} gelöscht.`);
+ });
+
+ return popupContent;
+}
+
+// Nächstgelegenen Punkt im VOLL aufgelösten Track zu einer Klickposition finden
+// (Bildschirm-Pixel-Distanz, damit es sich unabhängig vom Zoom "richtig" anfühlt).
+function findNearestTrackIndexByPixel(coords, clickPoint) {
+ let bestIndex = -1;
+ let bestDist = Infinity;
+ for (let i = 0; i < coords.length; i++) {
+     const screenPt = map.project([coords[i][0], coords[i][1]]);
+     const dx = screenPt.x - clickPoint.x;
+     const dy = screenPt.y - clickPoint.y;
+     const dist = dx * dx + dy * dy;
+     if (dist < bestDist) { bestDist = dist; bestIndex = i; }
+ }
+ return { index: bestIndex, pixelDist: Math.sqrt(bestDist) };
+}
+
+handleIndices.forEach(index => {
      const pt = coords[index];
      const isStart = (index === 0);
      const isEnd = (index === coords.length - 1);
@@ -1768,48 +1828,7 @@ function renderGpxEditMarkers() {
          .setLngLat([pt[0], pt[1]])
          .addTo(map);
 
-     const popupContent = document.createElement('div');
-     popupContent.style.color = '#111';
-     popupContent.style.fontSize = '12px';
-     popupContent.style.minWidth = '180px';
-     popupContent.innerHTML = `
-         <strong>Punkt #${index + 1} / ${coords.length}</strong><br>
-         <button class="trim-start-btn" style="background:#f59e0b; color:white; border:none; padding:5px 10px; border-radius:4px; margin-top:6px; cursor:pointer; font-size:10px; font-weight:bold; width:100%;">✂️ Bis hier entfernen (Start kürzen)</button>
-         <button class="truncate-trackpoint-btn" style="background:#f59e0b; color:white; border:none; padding:5px 10px; border-radius:4px; margin-top:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%;">✂️ Ab hier kürzen (Ende kürzen)</button>
-         <button class="delete-trackpoint-btn" style="background:#ef4444; color:white; border:none; padding:5px 10px; border-radius:4px; margin-top:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%;">🗑️ Nur diesen Punkt löschen</button>
-     `;
-
-     popupContent.querySelector('.trim-start-btn').addEventListener('click', () => {
-         if (index === 0) { showToast("⚠️ Das ist bereits der Startpunkt."); return; }
-         if (confirm(`Alles VOR Punkt #${index + 1} entfernen (neuer Start)?`)) {
-             const newCoords = coords.slice(index);
-             updateEditedTrack(newCoords);
-             renderGpxEditMarkers();
-             showToast(`✂️ Track-Start auf Punkt #${index + 1} gesetzt.`);
-         }
-     });
-
-     popupContent.querySelector('.truncate-trackpoint-btn').addEventListener('click', () => {
-         if (confirm(`Möchtest du den Track bei Punkt #${index + 1} abschneiden (alles danach entfernen)?`)) {
-             const newCoords = coords.slice(0, index + 1);
-             updateEditedTrack(newCoords);
-             renderGpxEditMarkers();
-             showToast(`✂️ Track bei Punkt #${index + 1} gekürzt.`);
-         }
-     });
-
-     popupContent.querySelector('.delete-trackpoint-btn').addEventListener('click', () => {
-         if (coords.length <= 2) {
-             showToast("⚠️ Mindestens 2 Punkte erforderlich.");
-             return;
-         }
-         const newCoords = coords.slice(0, index).concat(coords.slice(index + 1));
-         updateEditedTrack(newCoords);
-         renderGpxEditMarkers();
-         showToast(`🗑️ Punkt #${index + 1} gelöscht.`);
-     });
-
-     marker.setPopup(new maplibregl.Popup({ offset: 15 }).setDOMContent(popupContent));
+     marker.setPopup(new maplibregl.Popup({ offset: 15 }).setDOMContent(buildEditPointPopup(coords, index)));
 
      marker.on('dragend', () => {
          const newPos = marker.getLngLat();
@@ -2052,11 +2071,24 @@ map.on('click', (e) => {
 
  if (isEditGpxMode && currentGpxGeoJson) {
      let coords = extractTrackCoordinates(currentGpxGeoJson);
+     const nearest = findNearestTrackIndexByPixel(coords, e.point);
+     const TAP_THRESHOLD_PX = 45; // großzügiger Fingerspitzen-Radius auf dem Handy
+
+     if (nearest.index >= 0 && nearest.pixelDist <= TAP_THRESHOLD_PX) {
+         // Klick war nah an der Linie -> nächstgelegenen Punkt zum Bearbeiten öffnen,
+         // statt (wie zuvor) unbedingt einen neuen Punkt anzuhängen.
+         new maplibregl.Popup({ offset: 15 })
+             .setLngLat([coords[nearest.index][0], coords[nearest.index][1]])
+             .setDOMContent(buildEditPointPopup(coords, nearest.index))
+             .addTo(map);
+         return;
+     }
+
      const ele = map.queryTerrainElevation(e.lngLat) || 1000;
      coords.push([e.lngLat.lng, e.lngLat.lat, ele]);
      updateEditedTrack(coords);
      renderGpxEditMarkers();
-     showToast("➕ Punkt am Ende des Tracks hinzugefügt!");
+     showToast("➕ Punkt am Ende des Tracks hinzugefügt (weit von der Linie entfernt getippt).");
      return;
  }
 
