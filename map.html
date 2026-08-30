@@ -745,16 +745,11 @@ async function fetchTourForecasts(startCoord, peakCoord) {
          if (tourRealElevationPeak === null || tourRealElevationPeak === undefined) tourRealElevationPeak = tourModelElevationPeak;
      }
 
-     // Track-Koordinaten & Gehzeit-Gewichtung cachen (dieselbe Tobler-Funktion wie der Läufer-Marker),
-     // damit die Wetter-Position exakt zur simulierten Wanderposition passt statt nur zur reinen Zeit.
-     let trackCoords = getTrackCoordsFromGeoJson(currentGpxGeoJson);
-     if (trackCoords.length < 2 && map.getSource('uploaded-gpx')) {
-         trackCoords = getTrackCoordsFromGeoJson(map.getSource('uploaded-gpx')._data);
-     }
-     if (trackCoords.length >= 2) {
-         tourTrackCoordsCache = trackCoords;
-         tourWeightedData = buildWeightedTrackProgress(trackCoords);
-     }
+     // Hinweis: Das eigentliche Cachen der Track-Koordinaten passiert zuverlässig in
+     // cacheTourTrackForWeatherSim(), aufgerufen von drawGpx() sobald der Track wirklich
+     // gezeichnet ist (das GPX-Laden ist asynchron und zum Zeitpunkt dieses Fetches oft
+     // noch nicht fertig - ein Aufruf hier allein würde ins Leere laufen).
+     cacheTourTrackForWeatherSim();
 
      if (tourForecastDataStart || tourForecastDataPeak) {
          showToast(tourHasPeak ? "🎬 Turntable Forecast (Tal & Gipfel) aktiv!" : "🎬 Turntable Forecast aktiv!");
@@ -764,6 +759,24 @@ async function fetchTourForecasts(startCoord, peakCoord) {
  } catch (e) {
      console.log("Fehler beim Abrufen der Tour-Vorhersage", e);
  }
+}
+
+function cacheTourTrackForWeatherSim() {
+ // Wird von drawGpx() bei JEDER Änderung des angezeigten Tracks aufgerufen (initiales Laden,
+ // GPX-Upload, aber auch nachträgliches Kürzen/Löschen von Punkten) - so bleiben Wetter-HUD,
+ // Höhen-Blend und Läufer-Marker immer mit dem tatsächlich sichtbaren Track synchron.
+ let trackCoords = getTrackCoordsFromGeoJson(currentGpxGeoJson);
+ if (trackCoords.length < 2 && map.getSource('uploaded-gpx')) {
+     trackCoords = getTrackCoordsFromGeoJson(map.getSource('uploaded-gpx')._data);
+ }
+ if (trackCoords.length < 2) return;
+
+ tourTrackCoordsCache = trackCoords;
+ tourWeightedData = buildWeightedTrackProgress(trackCoords);
+
+ const currentProgress = parseFloat(tourTimeSlider.value) || 0;
+ updateTimelineWeatherSimulation(currentProgress);
+ updateRunnerAndCamera(currentProgress / 100);
 }
 
 function findClosestForecastIdx(times, targetMs) {
@@ -1840,6 +1853,7 @@ function drawGpx(geojson, centerMap = false) {
  } else { map.getSource('uploaded-gpx').setData(geojson); }
  
  calculateAndRenderElevationProfile(geojson);
+ cacheTourTrackForWeatherSim();
 
  if (isEditGpxMode) renderGpxEditMarkers();
 
