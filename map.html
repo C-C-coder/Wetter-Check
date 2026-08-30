@@ -178,25 +178,6 @@
      transition: transform 0.05s linear;
      position: relative;
  }
- .turntable-runner-marker::after {
-     content: '';
-     position: absolute;
-     top: 50%; left: 50%;
-     width: 0; height: 0;
-     border-left: 18px solid transparent;
-     border-right: 18px solid transparent;
-     border-bottom: 90px solid rgba(255, 244, 190, 0);
-     transform-origin: 50% 0%;
-     transform: translate(-50%, 0) rotate(0deg);
-     transition: opacity 0.4s ease;
-     opacity: 0;
-     pointer-events: none;
-     filter: blur(2px);
- }
- .turntable-runner-marker.headlamp-active::after {
-     opacity: 1;
-     border-bottom-color: rgba(255, 244, 190, 0.35);
- }
 
  /* HÖHENPROFIL: Als linksseitige Schublade (Drawer), Höhe passt sich dem Inhalt an
     statt die ganze Bildschirmhöhe zu beanspruchen */
@@ -694,32 +675,17 @@ function updateRunnerAndCamera(progress) {
  }
 
  // Stirnlampen-Simulation: bei Nacht (Sonne deutlich unter dem Horizont) bekommt der
- // Läufer-Punkt einen kleinen Lichtkegel in Bewegungsrichtung.
- const markerEl = turntableRunnerMarker.getElement();
- const isNight = currentSunAltDeg <= -5.625;
- markerEl.classList.toggle('headlamp-active', isNight);
- if (isNight) applyHeadlampRotation(markerEl, travelBearing);
+ // Läufer-Punkt einen kleinen Lichtkegel in Bewegungsrichtung. Wird NICHT per CSS am
+ // Marker gezeichnet (in MapLibre-internen Wrapper-Elementen unzuverlässig), sondern
+ // zuverlässig auf der bewährten Wetter-Canvas mitgerendert (siehe render()-Funktion).
+ runnerHeadlampActive = currentSunAltDeg <= -5.625;
+ runnerHeadlampBearing = travelBearing;
 
  if (followCameraMode && !isCinematicIntroActive) {
      // Zentrum bleibt exakt auf der Wanderposition - bei hohem Pitch positioniert MapLibre
      // die Kamera dadurch automatisch dahinter/darüber = klassischer "von außen zusehen"-Blick.
      map.jumpTo({ center: [pt[0], pt[1]], bearing: travelBearing, pitch: Math.max(map.getPitch(), 60) });
  }
-}
-
-function applyHeadlampRotation(markerEl, travelBearing) {
- // Der Marker sitzt in einem von MapLibre positionierten Container, der NICHT automatisch
- // mit dem Karten-Bearing mitdreht (Standard-Verhalten von maplibregl.Marker), daher muss
- // der Lichtkegel relativ zur aktuellen Kartendrehung ausgerichtet werden, damit er
- // unabhängig vom Kamerawinkel in die reale Bewegungsrichtung zeigt.
- const relativeAngle = (travelBearing - map.getBearing() + 360) % 360;
- let styleTag = document.getElementById('headlamp-dynamic-style');
- if (!styleTag) {
-     styleTag = document.createElement('style');
-     styleTag.id = 'headlamp-dynamic-style';
-     document.head.appendChild(styleTag);
- }
- styleTag.textContent = `.turntable-runner-marker.headlamp-active::after { transform: translate(-50%, 0) rotate(${relativeAngle}deg); }`;
 }
 
 tourTimeSlider.addEventListener('input', (e) => {
@@ -1175,12 +1141,16 @@ let clouds3D = []; for(let i=0; i<420; i++) clouds3D.push(new VolumetricCloudLay
 let flashTimer = 0; let lightningClusterX = 0, lightningClusterY = 0;
 
 let snowGridCache = null;
-let snowGridCacheKey = null;
+let lastSnowGridUpdateTime = 0;
 function updateSnowGridIfNeeded(bounds) {
- const key = `${bounds.getWest().toFixed(2)}_${bounds.getEast().toFixed(2)}_${bounds.getSouth().toFixed(2)}_${bounds.getNorth().toFixed(2)}`;
- if (key === snowGridCacheKey) return;
- snowGridCacheKey = key;
- const gridCols = 10, gridRows = 8;
+ // WICHTIG: zeitbasierte Drosselung statt reiner Kartenausschnitts-Prüfung - während einer
+ // Kamerabewegung (Intro, Kamera-Verfolgung) ändert sich der Kartenausschnitt praktisch jeden
+ // Frame minimal, wodurch die teuren Geländeabfragen sonst fast jeden Frame neu liefen
+ // (deutliches Ruckeln/Flackern der gesamten Simulation zur Folge).
+ const now = performance.now();
+ if (snowGridCache && now - lastSnowGridUpdateTime < 800) return;
+ lastSnowGridUpdateTime = now;
+ const gridCols = 6, gridRows = 5;
  const points = [];
  for (let i = 0; i <= gridCols; i++) {
      for (let j = 0; j <= gridRows; j++) {
@@ -1315,23 +1285,24 @@ const weather3DLayer = {
 
          // Wolkenschatten auf dem Gelände - projiziert den Schattenwurf jeder Wolke auf ihre
          // Bodenposition, BEVOR die Wolke selbst gezeichnet wird. Bodenhöhe wird pro Wolke nur
-         // einmal abgefragt und gecacht (wie beim Regen-Partikelsystem), nicht jeden Frame neu.
+         // einmal abgefragt und gecacht. Aus Performance-Gründen: einfache Flächenfüllung statt
+         // Gradient (Gradient-Erzeugung ist teuer bei bis zu 420 Wolken JEDEN Frame), und nur
+         // jede zweite Wolke wirft einen Schatten - in einer dichten Wolkendecke überlappen sich
+         // die Schatten ohnehin, der Unterschied fällt visuell kaum auf.
          if (cloudLevel >= 2) {
-             activeClouds.forEach(item => {
+             for (let ci = 0; ci < activeClouds.length; ci += 2) {
+                 const item = activeClouds[ci];
                  if (item.c.groundElev === null) {
                      try { item.c.groundElev = map.queryTerrainElevation([item.c.lng, item.c.lat]) || 0; }
                      catch (e) { item.c.groundElev = 0; }
                  }
                  const shadowPos = project3DToScreen(item.c.lng, item.c.lat, item.c.groundElev + 3, matrix);
-                 if (!shadowPos) return;
+                 if (!shadowPos) continue;
                  const shadowRadius = Math.max(60, (canvas.width / shadowPos.depth) * 0.18 * (cloudLevel === 3 ? 5.5 : 3.2));
-                 const shadowAlpha = 0.16 * (cloudLevel / 3) * item.c.opacity;
-                 const sGrad = ctx.createRadialGradient(shadowPos.x, shadowPos.y, 0, shadowPos.x, shadowPos.y, shadowRadius);
-                 sGrad.addColorStop(0, `rgba(10, 15, 25, ${shadowAlpha})`);
-                 sGrad.addColorStop(1, 'rgba(10, 15, 25, 0)');
-                 ctx.fillStyle = sGrad;
+                 const shadowAlpha = 0.13 * (cloudLevel / 3) * item.c.opacity;
+                 ctx.fillStyle = `rgba(10, 15, 25, ${shadowAlpha})`;
                  ctx.beginPath(); ctx.ellipse(shadowPos.x, shadowPos.y, shadowRadius, shadowRadius * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-             });
+             }
          }
 
          const introSamples = (isCinematicIntroActive && tourTrackCoordsCache.length >= 2) ? getIntroTrackSamples() : null;
@@ -1340,7 +1311,7 @@ const weather3DLayer = {
          activeClouds.forEach(item => {
              const sizeMultiplier = cloudLevel === 3 ? 6.0 : (cloudLevel === 2 ? 3.8 : 2.1);
              const baseCloudRadius = (canvas.width / item.pos.depth) * 0.16 * sizeMultiplier;
-             const visualRadius = Math.max(100, Math.min(baseCloudRadius, canvas.width * 2.5));
+             const visualRadius = Math.max(80, Math.min(baseCloudRadius, canvas.width * 0.45));
 
              const grad = ctx.createRadialGradient(item.pos.x, item.pos.y - (visualRadius * 0.2), visualRadius * 0.02, item.pos.x, item.pos.y, visualRadius);
              const isDark = (preset === 'gewitter_front' || preset === 'alpine_front');
@@ -1401,6 +1372,42 @@ const weather3DLayer = {
      }
 
      map.triggerRepaint();
+ }
+};
+
+// Stirnlampen-Simulation zuverlässig auf der Wetter-Canvas zeichnen (nicht per CSS am
+// Marker - das war in MapLibre-internen Wrapper-Elementen nicht zuverlässig sichtbar).
+const _originalWeatherRender = weather3DLayer.render;
+weather3DLayer.render = function(gl, matrix) {
+ _originalWeatherRender.call(this, gl, matrix);
+ if (runnerHeadlampActive && turntableRunnerMarker) {
+     const pos = turntableRunnerMarker.getLngLat();
+     const ele = getElevationAt(pos, 0) || 0;
+     const screenPos = project3DToScreen(pos.lng, pos.lat, ele + 3, matrix);
+     if (screenPos) {
+         const coneAngleDeg = (runnerHeadlampBearing - map.getBearing() + 360) % 360;
+         const coneAngleRad = coneAngleDeg * Math.PI / 180;
+         const coneLength = 70;
+         const coneWidth = 26 * Math.PI / 180;
+         const tipX = screenPos.x + Math.sin(coneAngleRad) * coneLength;
+         const tipY = screenPos.y - Math.cos(coneAngleRad) * coneLength;
+         const leftX = screenPos.x + Math.sin(coneAngleRad - coneWidth) * coneLength * 0.55;
+         const leftY = screenPos.y - Math.cos(coneAngleRad - coneWidth) * coneLength * 0.55;
+         const rightX = screenPos.x + Math.sin(coneAngleRad + coneWidth) * coneLength * 0.55;
+         const rightY = screenPos.y - Math.cos(coneAngleRad + coneWidth) * coneLength * 0.55;
+
+         const grad = ctx.createRadialGradient(screenPos.x, screenPos.y, 0, screenPos.x, screenPos.y, coneLength);
+         grad.addColorStop(0, 'rgba(255, 244, 190, 0.55)');
+         grad.addColorStop(1, 'rgba(255, 244, 190, 0)');
+         ctx.fillStyle = grad;
+         ctx.beginPath();
+         ctx.moveTo(screenPos.x, screenPos.y);
+         ctx.lineTo(leftX, leftY);
+         ctx.lineTo(tipX, tipY);
+         ctx.lineTo(rightX, rightY);
+         ctx.closePath();
+         ctx.fill();
+     }
  }
 };
 
@@ -1610,6 +1617,8 @@ function getInterpolatedPointOnTrack(coords, cumulativeWeighted, totalWeightedDi
 }
 
 let turntableRunnerMarker = null;
+let runnerHeadlampActive = false;
+let runnerHeadlampBearing = 0;
 
 function getTrackCoordsFromGeoJson(geojson) {
    let coords = [];
