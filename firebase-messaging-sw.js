@@ -48,7 +48,3 @@ event.waitUntil(
   })
 );
 });
-
-Was wurde verbessert?
-1. Direktes Abfangen: Die Einschränkung if (!payload.notification) wurde entfernt. Nun verarbeitet der Service Worker jede eintreffende Nachricht über self.registration.showNotification(...).
-2. Zuverlässige Vibration & Interaktion: Dadurch greifen das starke Vibrationsmuster [200, 100, 200, 100, 400] und requireInteraction: true jetzt garantiert, selbst wenn das Handy im Rucksack liegt oder im Energiesparmodus ist.
