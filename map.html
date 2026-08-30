@@ -584,6 +584,20 @@ const styles = {
 let currentStyleKey = 'satellite';
 const map = new maplibregl.Map({ container: 'map', style: styles[currentStyleKey], center: [13.3, 47.3], zoom: 8, pitch: 55, bearing: -15 });
 
+// MapLibre GL JS ab v5 gibt bei queryTerrainElevation() die ÜBERHÖHTE Geländehöhe zurück
+// (× terrain-exaggeration), nicht mehr die reale Meereshöhe wie in älteren Versionen. Da im
+// gesamten Code (Wettersimulation, Höhenprofil, Gehzeit-Physik, Wolkenschatten, etc.) überall
+// die REALE Höhe erwartet wird, wird das hier zentral EINMAL korrigiert, statt an jeder
+// einzelnen Aufrufstelle im Code separat - muss exakt zum exaggeration-Wert in
+// setupTerrainAndLighting passen.
+const TERRAIN_EXAGGERATION = 1.75;
+const _rawQueryTerrainElevation = map.queryTerrainElevation.bind(map);
+map.queryTerrainElevation = function(lngLat) {
+ const e = _rawQueryTerrainElevation(lngLat);
+ if (e === null || e === undefined) return e;
+ return e / TERRAIN_EXAGGERATION;
+};
+
 let currentGpxGeoJson = null;
 let measurePoints = [];
 let radiusCenter = null;
@@ -939,19 +953,10 @@ function setupTerrainAndLighting() {
              }
          });
      }
-     // Atmosphärischer Dunst am Horizont - lässt entfernte Bergketten realistisch im
-     // Dunst verschwimmen, statt hart abzuschneiden. Native MapLibre-Funktion, kein
-     // Performance-Overhead durch eigenen Code.
-     try {
-         map.setSky({
-             'sky-color': '#a8d4f0',
-             'sky-horizon-blend': 0.5,
-             'horizon-color': '#c9dde8',
-             'horizon-fog-blend': 0.6,
-             'fog-color': '#d8e4ec',
-             'fog-ground-blend': 0.7
-         });
-     } catch (skyErr) { console.log("Sky/Fog nicht verfügbar:", skyErr); }
+     // Atmosphärischer Dunst am Horizont - Stärke hängt von der simulierten Sichtweite ab,
+     // nicht permanent an. Siehe updateAtmosphericFog(), die bei jeder Wetteränderung neu
+     // aufgerufen wird.
+     updateAtmosphericFog();
  } catch (e) { console.log("Warte auf Terrain..."); }
  restoreCustomLayers();
  updateSolarPhysics();
@@ -985,6 +990,24 @@ const getWindDirLabel = (deg) => {
  return `${deg}° (${dirs[Math.round(deg / 45) % 8]})`;
 };
 
+function updateAtmosphericFog() {
+ // Nebel-Stärke am Horizont richtet sich nach der simulierten Sichtweite - bei guter Sicht
+ // (20km) praktisch kein zusätzlicher Dunst, bei schlechter Sicht deutlich mehr. Dadurch ist
+ // der Effekt an die Wetterdaten gekoppelt statt permanent gleich stark an zu sein.
+ try {
+     const visVal = parseFloat(visibilitySlider.value);
+     const fogStrength = Math.max(0, Math.min(1, (20 - visVal) / 19));
+     map.setSky({
+         'sky-color': '#a8d4f0',
+         'sky-horizon-blend': 0.1 + fogStrength * 0.35,
+         'horizon-color': '#c9dde8',
+         'horizon-fog-blend': 0.05 + fogStrength * 0.5,
+         'fog-color': '#d8e4ec',
+         'fog-ground-blend': 0.05 + fogStrength * 0.55
+     });
+ } catch (e) { /* Terrain evtl. noch nicht bereit */ }
+}
+
 const updateWeatherUI = () => {
  document.getElementById('snowline-val').innerText = `${snowlineSlider.value}m`;
  document.getElementById('cloud-base-val').innerText = `${cloudBaseSlider.value}m`;
@@ -995,6 +1018,7 @@ const updateWeatherUI = () => {
  document.getElementById('visibility-val').innerText = visVal < 1 ? `${Math.round(visVal * 1000)} m` : `${visVal} km`;
  document.getElementById('cloud-val').innerText = ["Aus", "Leicht", "Mittel", "Volumetrisch (Dicht)"][cloudSlider.value];
  document.getElementById('precip-val').innerText = ["Aus", "Leicht", "Mittel", "Extrem"][precipSlider.value];
+ updateAtmosphericFog();
  map.triggerRepaint();
 };
 [snowlineSlider, presetSelect, windSlider, windDirSlider, cloudSlider, cloudBaseSlider, cloudTopSlider, visibilitySlider, precipSlider].forEach(el => el.addEventListener('input', updateWeatherUI));
