@@ -2012,13 +2012,35 @@ function updateEditedTrack(updatedCoords) {
  document.getElementById('export-gpx-btn').style.display = 'inline-flex';
 }
 
+function stripZFromGeoJson(geojson) {
+ // MapLibre GL JS ab v5 kann bei Linien-Layern mit 3D-Koordinaten (lng,lat,ele aus GPX)
+ // anders mit der Höhen-Komponente umgehen als ältere Versionen - dadurch kann die Linie
+ // im überhöhten 3D-Gelände "versinken" und unsichtbar werden. Für die reine Kartendarstellung
+ // wird hier daher eine rein 2D-Kopie (ohne z) erzeugt, die zuverlässig auf das Gelände
+ // gedrapt wird. Die Original-3D-Daten (currentGpxGeoJson) bleiben für Höhenprofil/Physik
+ // unangetastet erhalten.
+ const clone = JSON.parse(JSON.stringify(geojson));
+ const stripCoords = (coords) => {
+     if (typeof coords[0] === 'number') return [coords[0], coords[1]];
+     return coords.map(stripCoords);
+ };
+ const features = clone.features || [clone];
+ features.forEach(f => {
+     if (f.geometry && f.geometry.coordinates) {
+         f.geometry.coordinates = stripCoords(f.geometry.coordinates);
+     }
+ });
+ return clone;
+}
+
 function drawGpx(geojson, centerMap = false) {
  currentGpxGeoJson = geojson;
+ const displayGeojson = stripZFromGeoJson(geojson);
  if (!map.getSource('uploaded-gpx')) {
-     map.addSource('uploaded-gpx', { type: 'geojson', data: geojson });
+     map.addSource('uploaded-gpx', { type: 'geojson', data: displayGeojson });
      map.addLayer({ id: 'uploaded-gpx-layer', type: 'line', source: 'uploaded-gpx', paint: { 'line-color': '#ef4444', 'line-width': 3, 'line-opacity': 0.95 } });
- } else { map.getSource('uploaded-gpx').setData(geojson); }
- 
+ } else { map.getSource('uploaded-gpx').setData(displayGeojson); }
+
  calculateAndRenderElevationProfile(geojson);
  cacheTourTrackForWeatherSim();
 
