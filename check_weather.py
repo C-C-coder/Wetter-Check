@@ -17,12 +17,12 @@ if not firebase_admin._apps:
       firebase_admin.initialize_app()
 
 db = firestore.client()
-LOCAL_TZ = timezone(timedelta(hours=2))
+LOCAL_TZ = pytz.timezone('Europe/Vienna')  # berücksichtigt automatisch CET/CEST-Wechsel
 
 LIVE_DIRS = [
   {"name": "N", "lat": 1, "lon": 0}, {"name": "NO", "lat": .7071, "lon": .7071}, {"name": "O", "lat": 0, "lon": 1},
   {"name": "SO", "lat": -.7071, "lon": .7071}, {"name": "S", "lat": -1, "lon": 0}, {"name": "SW", "lat": -.7071, "lon": -.7071},
-  {"name": "W", "lat": 0, "lon": -1}, {"name": "NW", "lat": .7071, "lon": .7071}
+  {"name": "W", "lat": 0, "lon": -1}, {"name": "NW", "lat": .7071, "lon": -.7071}
 ]
 
 # 2. High-Priority Push Funktion (Gegen Doze-Mode & für Alpine Sichtbarkeit)
@@ -199,25 +199,152 @@ def score_risk_advanced(rain, snow, gust, cape, code, prob, temp, vis=0, tour_ty
 
   return min(100, s), list(set(reasons))
 
-# 7. Nowcast Analyse (Mit 0.02mm Schwellenwert & GeoJSON-Fix)
-def analyze_advanced_front(lat, lon):
+# 7. Nowcast Analyse - Raster-basiert (1 API-Call statt bis zu 41)
+#    Holt das gesamte Niederschlagsfeld um die Position per Bounding-Box-Abfrage
+#    und bestimmt Richtung/Geschwindigkeit/ETA einer Front per lokaler Regression,
+#    statt viele einzelne Punkte einzeln abzufragen.
+RAIN_THRESHOLD = 0.02
+MIN_SECTOR_KM = 2.0
+MAX_SECTOR_KM = 25.0
+GRID_MARGIN_KM = 3.0  # etwas Puffer über MAX_SECTOR_KM hinaus für die Bbox
+
+def bearing_to_sector(lat1, lon1, lat2, lon2):
+  """Grobe Himmelsrichtung, aus der ein Punkt (lat2,lon2) von (lat1,lon1) aus gesehen liegt."""
+  phi1, phi2 = math.radians(lat1), math.radians(lat2)
+  dlambda = math.radians(lon2 - lon1)
+  x = math.sin(dlambda) * math.cos(phi2)
+  y = math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(dlambda)
+  bearing = (math.degrees(math.atan2(x, y)) + 360) % 360
+  dirs = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW']
+  return dirs[round(bearing / 45) % 8]
+
+def fetch_precip_grid(lat, lon, half_extent_km):
+  """Ein einziger Bbox-Request statt vieler Einzelpunkt-Requests."""
+  dlat = half_extent_km / 111.32
+  dlon = half_extent_km / (111.32 * max(.2, math.cos(math.radians(lat))))
+  south, north = lat - dlat, lat + dlat
+  west, east = lon - dlon, lon + dlon
+  url = (
+      f"https://dataset.api.hub.geosphere.at/v1/grid/forecast/nowcast-v1-15min-1km"
+      f"?parameters=rr&bbox={south:.5f},{west:.5f},{north:.5f},{east:.5f}&output_format=geojson"
+  )
+  res = requests.get(url, timeout=15).json()
+  return res.get('features', [])
+
+def _parse_grid_feature(feat):
+  coords = feat.get('geometry', {}).get('coordinates', [None, None])
+  f_lon, f_lat = coords[0], coords[1]
+  props = feat.get('properties', {})
+  times = props.get('time', props.get('parameters', {}).get('rr', {}).get('timestamps', []))
+  vals = props.get('parameters', {}).get('rr', {}).get('data', [])
+  return f_lat, f_lon, times, vals
+
+def analyze_precip_raster(lat, lon):
+  """Neue, sparsame Methode: 1 Grid-Request, lokale Richtungs-/Geschwindigkeits-Regression."""
+  features = fetch_precip_grid(lat, lon, half_extent_km=MAX_SECTOR_KM + GRID_MARGIN_KM)
+  if not features:
+      return None
+
+  cells = []
+  for feat in features:
+      f_lat, f_lon, times, vals = _parse_grid_feature(feat)
+      if f_lat is None or f_lon is None or not times:
+          continue
+      onset = find_onset(times, vals, threshold=RAIN_THRESHOLD)
+      dist = calc_distance_km(lat, lon, f_lat, f_lon)
+      cells.append({"lat": f_lat, "lon": f_lon, "dist": dist, "onset": onset})
+
+  if not cells:
+      return None
+
+  # 1) Regnet es schon direkt an der eigenen Position?
+  center_cell = min(cells, key=lambda c: c["dist"])
+  if center_cell["dist"] < 1.5 and center_cell["onset"]:
+      o = center_cell["onset"]
+      return {"stage": "arrival", "distance_km": 0, "time": o["time"], "direction": None, "amount": o["amount"]}
+
+  # 2) Pro Sektor: onset-Zeit vs. Entfernung linear fitten -> Geschwindigkeit & ETA bei Distanz 0
+  sectors = {}
+  for c in cells:
+      if not (MIN_SECTOR_KM <= c["dist"] <= MAX_SECTOR_KM) or not c["onset"]:
+          continue
+      sec = bearing_to_sector(lat, lon, c["lat"], c["lon"])
+      try:
+          t_epoch = datetime.fromisoformat(c["onset"]["time"].replace('Z', '+00:00')).timestamp()
+      except Exception:
+          continue
+      sectors.setdefault(sec, []).append((c["dist"], t_epoch, c["onset"].get("amount", 0)))
+
+  candidates = []
+  for sec, pts in sectors.items():
+      if len(pts) < 3:
+          continue
+      n = len(pts)
+      sum_d = sum(p[0] for p in pts)
+      sum_t = sum(p[1] for p in pts)
+      sum_dt = sum(p[0] * p[1] for p in pts)
+      sum_dd = sum(p[0] * p[0] for p in pts)
+      denom = n * sum_dd - sum_d * sum_d
+      if abs(denom) < 1e-6:
+          continue
+      a = (n * sum_dt - sum_d * sum_t) / denom  # Sekunden pro km
+      b = (sum_t - a * sum_d) / n                # ETA (epoch) bei Distanz 0
+
+      if a >= 0:
+          continue  # onset-Zeit muss mit sinkender Entfernung sinken (Front zieht heran)
+      speed_kmh = -3600.0 / a
+      if not (10 <= speed_kmh <= 120):
+          continue
+
+      now_epoch = datetime.now(timezone.utc).timestamp()
+      if b < now_epoch - 300:
+          continue
+
+      nearest_dist = min(p[0] for p in pts)
+      amount = max(p[2] for p in pts)
+      if nearest_dist >= 16:
+          stage = "early_warning"
+      elif nearest_dist >= 8:
+          stage = "update_mid"
+      else:
+          stage = "update_close"
+
+      candidates.append({
+          "stage": stage,
+          "distance_km": nearest_dist,
+          "time": datetime.fromtimestamp(b, timezone.utc).isoformat(),
+          "direction": sec,
+          "amount": amount,
+          "speed": speed_kmh
+      })
+
+  if candidates:
+      candidates.sort(key=lambda x: x["time"])
+      return candidates[0]
+
+  return None
+
+# 7b. Legacy-Fallback (Sternmuster mit Einzelpunkt-Requests) - greift nur, wenn der
+#     neue Raster-Endpunkt fehlschlägt (z.B. Bbox-Limit, API-Ausfall), damit Warnungen
+#     zuverlässig weiterlaufen statt komplett auszufallen.
+def analyze_advanced_front_legacy(lat, lon):
   try:
       center_url = f"https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nowcast-v1-15min-1km?lat_lon={lat:.5f},{lon:.5f}&parameters=rr&forecast_offset=0&output_format=geojson"
       c_res = requests.get(center_url, timeout=8).json()
       c_features = c_res.get('features', [])
-      
+
       if c_features:
           props = c_features[0].get('properties', {})
           c_times = props.get('time', props.get('parameters', {}).get('rr', {}).get('timestamps', []))
           c_vals = props.get('parameters', {}).get('rr', {}).get('data', [])
-          
-          center_onset = find_onset(c_times, c_vals, threshold=0.02)
+
+          center_onset = find_onset(c_times, c_vals, threshold=RAIN_THRESHOLD)
           if center_onset:
               return {"stage": "arrival", "distance_km": 0, "time": center_onset["time"], "direction": None, "amount": center_onset["amount"]}
 
       points = []
       radii = [4, 8, 12, 18, 20]
-      
+
       for d in LIVE_DIRS:
           for km in radii:
               pLat, pLon = live_distance_point(lat, lon, d, km)
@@ -225,7 +352,7 @@ def analyze_advanced_front(lat, lon):
 
       pts_query = "&".join([f"lat_lon={p['lat']:.5f},{p['lon']:.5f}" for p in points])
       pts_url = f"https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nowcast-v1-15min-1km?{pts_query}&parameters=rr&forecast_offset=0&output_format=geojson"
-      
+
       p_res = requests.get(pts_url, timeout=10).json()
       features = p_res.get('features', [])
 
@@ -243,20 +370,20 @@ def analyze_advanced_front(lat, lon):
               if outer_km in items and inner_km in items:
                   o_out = find_onset(items[outer_km]["times"], items[outer_km]["vals"])
                   o_in = find_onset(items[inner_km]["times"], items[inner_km]["vals"])
-                  
+
                   if o_out and o_in and o_out.get("time") and o_in.get("time"):
                       try:
                           t_out = datetime.fromisoformat(o_out["time"].replace('Z', '+00:00')).timestamp()
                           t_in = datetime.fromisoformat(o_in["time"].replace('Z', '+00:00')).timestamp()
                           dt = t_in - t_out
-                          
+
                           if dt > 0:
                               dist_diff = outer_km - inner_km
                               speed_kmh = dist_diff / (dt / 3600)
-                              
+
                               if 10 <= speed_kmh <= 120:
                                   eta_ms = t_in + (inner_km / speed_kmh) * 3600
-                                  
+
                                   if inner_km >= 16:
                                       stage = "early_warning"
                                   elif inner_km >= 8:
@@ -278,10 +405,21 @@ def analyze_advanced_front(lat, lon):
       if candidates:
           candidates.sort(key=lambda x: x["time"])
           return candidates[0]
-          
+
   except Exception as e:
-      print(f"Erweiterter Nowcast Analyse Fehler: {e}")
+      print(f"Legacy Nowcast Analyse Fehler: {e}")
   return None
+
+def analyze_advanced_front(lat, lon):
+  """Öffentliche Einstiegsfunktion: Raster-Methode zuerst (schnell & sparsam),
+  bei jedem Fehler automatischer Fallback auf die alte Punktraster-Methode."""
+  try:
+      result = analyze_precip_raster(lat, lon)
+      if result is not None:
+          return result
+  except Exception as e:
+      print(f"Grid-Nowcast Analyse Fehler, falle auf Legacy-Methode zurück: {e}")
+  return analyze_advanced_front_legacy(lat, lon)
 
 # 8. Prognose Trend mit Tal/Gipfel, Wet-Rock & fokussierten Risikogründen
 def check_forecast_trend(lat, lon, start_dt, duration, tour_types=None, peak_lat=None, peak_lon=None):
@@ -326,7 +464,7 @@ def check_forecast_trend(lat, lon, start_dt, duration, tour_types=None, peak_lat
       worst_reasons = []
 
       for i, t_str in enumerate(times):
-          t_dt = datetime.fromisoformat(t_str).replace(tzinfo=LOCAL_TZ)
+          t_dt = LOCAL_TZ.localize(datetime.fromisoformat(t_str))
           
           if start_dt <= t_dt <= end_dt:
               temp = float(h.get('temperature_2m', [0])[i] or 0)
@@ -429,9 +567,9 @@ def check_all_tours():
           if '+' in clean_time_str or clean_time_str.count('-') > 2:
               start_dt = datetime.fromisoformat(start_time_str)
               if start_dt.tzinfo is None:
-                  start_dt = start_dt.replace(tzinfo=LOCAL_TZ)
+                  start_dt = LOCAL_TZ.localize(start_dt)
           else:
-              start_dt = datetime.fromisoformat(clean_time_str).replace(tzinfo=LOCAL_TZ)
+              start_dt = LOCAL_TZ.localize(datetime.fromisoformat(clean_time_str))
 
           end_dt = start_dt + timedelta(hours=duration)
           now_utc = datetime.now(timezone.utc)
