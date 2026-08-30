@@ -176,6 +176,26 @@
      box-shadow: 0 0 16px #22c55e, 0 0 28px #00ff66, 0 0 6px #000;
      pointer-events: none;
      transition: transform 0.05s linear;
+     position: relative;
+ }
+ .turntable-runner-marker::after {
+     content: '';
+     position: absolute;
+     top: 50%; left: 50%;
+     width: 0; height: 0;
+     border-left: 18px solid transparent;
+     border-right: 18px solid transparent;
+     border-bottom: 90px solid rgba(255, 244, 190, 0);
+     transform-origin: 50% 0%;
+     transform: translate(-50%, 0) rotate(0deg);
+     transition: opacity 0.4s ease;
+     opacity: 0;
+     pointer-events: none;
+     filter: blur(2px);
+ }
+ .turntable-runner-marker.headlamp-active::after {
+     opacity: 1;
+     border-bottom-color: rgba(255, 244, 190, 0.35);
  }
 
  /* HÖHENPROFIL: Als linksseitige Schublade (Drawer), Höhe passt sich dem Inhalt an
@@ -663,19 +683,43 @@ function updateRunnerAndCamera(progress) {
      turntableRunnerMarker.setLngLat([pt[0], pt[1]]);
  }
 
+ // Bewegungsrichtung immer berechnen (nicht nur bei aktiver Kamera-Verfolgung) - wird auch
+ // für die Ausrichtung der Stirnlampen-Simulation bei Nacht gebraucht.
+ const aheadProgress = Math.min(1, progress + 0.01);
+ const aheadPt = getInterpolatedPointOnTrack(tourTrackCoordsCache, tourWeightedData.cumulativeWeighted, tourWeightedData.totalWeightedDist, aheadProgress);
+ const dLng = aheadPt[0] - pt[0], dLat = aheadPt[1] - pt[1];
+ let travelBearing = map.getBearing();
+ if (Math.abs(dLng) > 1e-9 || Math.abs(dLat) > 1e-9) {
+     travelBearing = (Math.atan2(dLng, dLat) * 180 / Math.PI + 360) % 360;
+ }
+
+ // Stirnlampen-Simulation: bei Nacht (Sonne deutlich unter dem Horizont) bekommt der
+ // Läufer-Punkt einen kleinen Lichtkegel in Bewegungsrichtung.
+ const markerEl = turntableRunnerMarker.getElement();
+ const isNight = currentSunAltDeg <= -5.625;
+ markerEl.classList.toggle('headlamp-active', isNight);
+ if (isNight) applyHeadlampRotation(markerEl, travelBearing);
+
  if (followCameraMode && !isCinematicIntroActive) {
-     // Blickrichtung = tatsächliche Bewegungsrichtung entlang des Tracks (kurzes Stück voraus)
-     const aheadProgress = Math.min(1, progress + 0.01);
-     const aheadPt = getInterpolatedPointOnTrack(tourTrackCoordsCache, tourWeightedData.cumulativeWeighted, tourWeightedData.totalWeightedDist, aheadProgress);
-     const dLng = aheadPt[0] - pt[0], dLat = aheadPt[1] - pt[1];
-     let travelBearing = map.getBearing();
-     if (Math.abs(dLng) > 1e-9 || Math.abs(dLat) > 1e-9) {
-         travelBearing = (Math.atan2(dLng, dLat) * 180 / Math.PI + 360) % 360;
-     }
      // Zentrum bleibt exakt auf der Wanderposition - bei hohem Pitch positioniert MapLibre
      // die Kamera dadurch automatisch dahinter/darüber = klassischer "von außen zusehen"-Blick.
      map.jumpTo({ center: [pt[0], pt[1]], bearing: travelBearing, pitch: Math.max(map.getPitch(), 60) });
  }
+}
+
+function applyHeadlampRotation(markerEl, travelBearing) {
+ // Der Marker sitzt in einem von MapLibre positionierten Container, der NICHT automatisch
+ // mit dem Karten-Bearing mitdreht (Standard-Verhalten von maplibregl.Marker), daher muss
+ // der Lichtkegel relativ zur aktuellen Kartendrehung ausgerichtet werden, damit er
+ // unabhängig vom Kamerawinkel in die reale Bewegungsrichtung zeigt.
+ const relativeAngle = (travelBearing - map.getBearing() + 360) % 360;
+ let styleTag = document.getElementById('headlamp-dynamic-style');
+ if (!styleTag) {
+     styleTag = document.createElement('style');
+     styleTag.id = 'headlamp-dynamic-style';
+     document.head.appendChild(styleTag);
+ }
+ styleTag.textContent = `.turntable-runner-marker.headlamp-active::after { transform: translate(-50%, 0) rotate(${relativeAngle}deg); }`;
 }
 
 tourTimeSlider.addEventListener('input', (e) => {
@@ -1121,6 +1165,7 @@ class VolumetricCloudLayer {
      const cloudTop = parseInt(cloudTopSlider.value);
      this.alt = cloudBase + Math.random() * Math.max(300, (cloudTop - cloudBase));
      this.opacity = Math.random() * 0.12 + 0.88;
+     this.groundElev = null; // wird beim Zeichnen des Schattens einmalig abgefragt & gecacht
  }
 }
 
@@ -1128,6 +1173,50 @@ let cachedViewBounds = null; // einmal pro Render-Frame gesetzt, um wiederholte 
 let particles3D = []; for(let i=0; i<7500; i++) particles3D.push(new UltraParticle());
 let clouds3D = []; for(let i=0; i<420; i++) clouds3D.push(new VolumetricCloudLayer());
 let flashTimer = 0; let lightningClusterX = 0, lightningClusterY = 0;
+
+let snowGridCache = null;
+let snowGridCacheKey = null;
+function updateSnowGridIfNeeded(bounds) {
+ const key = `${bounds.getWest().toFixed(2)}_${bounds.getEast().toFixed(2)}_${bounds.getSouth().toFixed(2)}_${bounds.getNorth().toFixed(2)}`;
+ if (key === snowGridCacheKey) return;
+ snowGridCacheKey = key;
+ const gridCols = 10, gridRows = 8;
+ const points = [];
+ for (let i = 0; i <= gridCols; i++) {
+     for (let j = 0; j <= gridRows; j++) {
+         const lng = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * (i / gridCols);
+         const lat = bounds.getSouth() + (bounds.getNorth() - bounds.getSouth()) * (j / gridRows);
+         let ele = 0;
+         try { ele = map.queryTerrainElevation([lng, lat]) || 0; } catch (e) {}
+         points.push({ lng, lat, ele });
+     }
+ }
+ snowGridCache = points;
+}
+
+let introTrackSampleCache = null;
+let introTrackSampleCacheLen = -1;
+function getIntroTrackSamples() {
+ // Grob abgetastete Track-Punkte für die "Klarheits-Tunnel"-Berechnung während des Intros -
+ // wird nur einmal pro Track neu gebaut, nicht jeden Frame.
+ if (introTrackSampleCache && introTrackSampleCacheLen === tourTrackCoordsCache.length) return introTrackSampleCache;
+ introTrackSampleCacheLen = tourTrackCoordsCache.length;
+ const step = Math.max(1, Math.floor(tourTrackCoordsCache.length / 80));
+ const samples = [];
+ for (let i = 0; i < tourTrackCoordsCache.length; i += step) samples.push(tourTrackCoordsCache[i]);
+ introTrackSampleCache = samples;
+ return samples;
+}
+function distanceToTrackDeg(lng, lat, samples) {
+ let minDist = Infinity;
+ for (let i = 0; i < samples.length; i++) {
+     const dLng = (samples[i][0] - lng) * Math.cos(lat * Math.PI / 180);
+     const dLat = samples[i][1] - lat;
+     const d = dLng * dLng + dLat * dLat;
+     if (d < minDist) minDist = d;
+ }
+ return Math.sqrt(minDist);
+}
 
 const weather3DLayer = {
  id: 'weather-3d-layer',
@@ -1153,7 +1242,27 @@ const weather3DLayer = {
      const terrainElevAtCenter = map.queryTerrainElevation([centerCoord.lng, centerCoord.lat]) || 0;
 
      if (cloudLevel > 0 && cloudBase <= terrainElevAtCenter + 200) {
-         visibilityKm = Math.min(visibilityKm, 0.7); 
+         visibilityKm = Math.min(visibilityKm, 0.7);
+     }
+
+     // Schnee-Einfärbung oberhalb der Schneefallgrenze - macht das Gelände passend zur
+     // simulierten Höhenlage "eingeschneit", statt immer das (evtl. sommerliche) Satellitenfoto
+     // zu zeigen. Läuft unabhängig vom aktuellen Niederschlag, da liegender Schnee bleibt.
+     updateSnowGridIfNeeded(cachedViewBounds);
+     if (snowGridCache) {
+         snowGridCache.forEach(pt => {
+             if (pt.ele > snowline) {
+                 const pos = project3DToScreen(pt.lng, pt.lat, pt.ele, matrix);
+                 if (!pos) return;
+                 const intensity = Math.min(1, (pt.ele - snowline) / 400);
+                 const radius = Math.max(40, (canvas.width / pos.depth) * 0.28);
+                 const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, radius);
+                 grad.addColorStop(0, `rgba(255,255,255,${0.4 * intensity})`);
+                 grad.addColorStop(1, 'rgba(255,255,255,0)');
+                 ctx.fillStyle = grad;
+                 ctx.beginPath(); ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2); ctx.fill();
+             }
+         });
      }
 
      if (preset === 'gewitter_front') {
@@ -1204,6 +1313,30 @@ const weather3DLayer = {
          });
          activeClouds.sort((a, b) => b.pos.depth - a.pos.depth);
 
+         // Wolkenschatten auf dem Gelände - projiziert den Schattenwurf jeder Wolke auf ihre
+         // Bodenposition, BEVOR die Wolke selbst gezeichnet wird. Bodenhöhe wird pro Wolke nur
+         // einmal abgefragt und gecacht (wie beim Regen-Partikelsystem), nicht jeden Frame neu.
+         if (cloudLevel >= 2) {
+             activeClouds.forEach(item => {
+                 if (item.c.groundElev === null) {
+                     try { item.c.groundElev = map.queryTerrainElevation([item.c.lng, item.c.lat]) || 0; }
+                     catch (e) { item.c.groundElev = 0; }
+                 }
+                 const shadowPos = project3DToScreen(item.c.lng, item.c.lat, item.c.groundElev + 3, matrix);
+                 if (!shadowPos) return;
+                 const shadowRadius = Math.max(60, (canvas.width / shadowPos.depth) * 0.18 * (cloudLevel === 3 ? 5.5 : 3.2));
+                 const shadowAlpha = 0.16 * (cloudLevel / 3) * item.c.opacity;
+                 const sGrad = ctx.createRadialGradient(shadowPos.x, shadowPos.y, 0, shadowPos.x, shadowPos.y, shadowRadius);
+                 sGrad.addColorStop(0, `rgba(10, 15, 25, ${shadowAlpha})`);
+                 sGrad.addColorStop(1, 'rgba(10, 15, 25, 0)');
+                 ctx.fillStyle = sGrad;
+                 ctx.beginPath(); ctx.ellipse(shadowPos.x, shadowPos.y, shadowRadius, shadowRadius * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+             });
+         }
+
+         const introSamples = (isCinematicIntroActive && tourTrackCoordsCache.length >= 2) ? getIntroTrackSamples() : null;
+         const clearingRadiusDeg = 0.012; // Breite des "Klarheits-Tunnels" um die Route
+
          activeClouds.forEach(item => {
              const sizeMultiplier = cloudLevel === 3 ? 6.0 : (cloudLevel === 2 ? 3.8 : 2.1);
              const baseCloudRadius = (canvas.width / item.pos.depth) * 0.16 * sizeMultiplier;
@@ -1213,6 +1346,17 @@ const weather3DLayer = {
              const isDark = (preset === 'gewitter_front' || preset === 'alpine_front');
              let maxAlpha = item.c.opacity * (cloudLevel / 3);
              if (cloudLevel === 3) maxAlpha = 0.99;
+
+             // "Glaskugel-Effekt": Wolken werden entlang der Tour-Route durchsichtiger, wie ein
+             // Tunnel der Klarheit durch die Bewölkung - Wolken abseits der Route bleiben
+             // unverändert dicht/realistisch. Nur während des Cinematic-Intros aktiv.
+             if (introSamples) {
+                 const distDeg = distanceToTrackDeg(item.c.lng, item.c.lat, introSamples);
+                 if (distDeg < clearingRadiusDeg) {
+                     const clearness = 1 - (distDeg / clearingRadiusDeg);
+                     maxAlpha *= (1 - clearness * 0.85);
+                 }
+             }
 
              grad.addColorStop(0, isDark ? `rgba(50, 60, 75, ${maxAlpha})` : `rgba(250, 253, 255, ${maxAlpha})`);
              grad.addColorStop(0.35, isDark ? `rgba(25, 35, 50, ${maxAlpha * 0.92})` : `rgba(215, 230, 245, ${maxAlpha * 0.92})`);
