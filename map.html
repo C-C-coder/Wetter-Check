@@ -1749,17 +1749,25 @@ function renderGpxEditMarkers() {
      showToast(`✏️ ${coords.length} Trackpunkte - zeige ${handleIndices.length} Anfasspunkte zur Bearbeitung.`);
  }
 
-function buildEditPointPopup(coords, index) {
+function buildEditPointPopup(coords, index, onActionDone) {
  const popupContent = document.createElement('div');
  popupContent.style.color = '#111';
  popupContent.style.fontSize = '12px';
  popupContent.style.minWidth = '180px';
+ popupContent.style.touchAction = 'manipulation';
  popupContent.innerHTML = `
      <strong>Punkt #${index + 1} / ${coords.length}</strong><br>
-     <button class="trim-start-btn" style="background:#f59e0b; color:white; border:none; padding:5px 10px; border-radius:4px; margin-top:6px; cursor:pointer; font-size:10px; font-weight:bold; width:100%;">✂️ Bis hier entfernen (Start kürzen)</button>
-     <button class="truncate-trackpoint-btn" style="background:#f59e0b; color:white; border:none; padding:5px 10px; border-radius:4px; margin-top:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%;">✂️ Ab hier kürzen (Ende kürzen)</button>
-     <button class="delete-trackpoint-btn" style="background:#ef4444; color:white; border:none; padding:5px 10px; border-radius:4px; margin-top:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%;">🗑️ Nur diesen Punkt löschen</button>
+     <button class="trim-start-btn" style="touch-action:manipulation; background:#f59e0b; color:white; border:none; padding:8px 10px; border-radius:4px; margin-top:6px; cursor:pointer; font-size:11px; font-weight:bold; width:100%;">✂️ Bis hier entfernen (Start kürzen)</button>
+     <button class="truncate-trackpoint-btn" style="touch-action:manipulation; background:#f59e0b; color:white; border:none; padding:8px 10px; border-radius:4px; margin-top:4px; cursor:pointer; font-size:11px; font-weight:bold; width:100%;">✂️ Ab hier kürzen (Ende kürzen)</button>
+     <button class="delete-trackpoint-btn" style="touch-action:manipulation; background:#ef4444; color:white; border:none; padding:8px 10px; border-radius:4px; margin-top:4px; cursor:pointer; font-size:11px; font-weight:bold; width:100%;">🗑️ Nur diesen Punkt löschen</button>
  `;
+
+ // stopPropagation auf mehreren Touch-/Maus-Ereignissen: verhindert, dass das Gesten-System
+ // der Karte einen Tap auf diese Buttons als Karten-Interaktion (Pan/Klick-zum-Schließen)
+ // fehlinterpretiert und der eigentliche Button-Klick dadurch verloren geht.
+ ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(evt => {
+     popupContent.addEventListener(evt, (e) => e.stopPropagation());
+ });
 
  popupContent.querySelector('.trim-start-btn').addEventListener('click', () => {
      if (index === 0) { showToast("⚠️ Das ist bereits der Startpunkt."); return; }
@@ -1768,6 +1776,7 @@ function buildEditPointPopup(coords, index) {
          updateEditedTrack(newCoords);
          renderGpxEditMarkers();
          showToast(`✂️ Track-Start auf Punkt #${index + 1} gesetzt.`);
+         if (onActionDone) onActionDone();
      }
  });
 
@@ -1777,6 +1786,7 @@ function buildEditPointPopup(coords, index) {
          updateEditedTrack(newCoords);
          renderGpxEditMarkers();
          showToast(`✂️ Track bei Punkt #${index + 1} gekürzt.`);
+         if (onActionDone) onActionDone();
      }
  });
 
@@ -1789,6 +1799,7 @@ function buildEditPointPopup(coords, index) {
      updateEditedTrack(newCoords);
      renderGpxEditMarkers();
      showToast(`🗑️ Punkt #${index + 1} gelöscht.`);
+     if (onActionDone) onActionDone();
  });
 
  return popupContent;
@@ -1828,7 +1839,7 @@ handleIndices.forEach(index => {
          .setLngLat([pt[0], pt[1]])
          .addTo(map);
 
-     marker.setPopup(new maplibregl.Popup({ offset: 15 }).setDOMContent(buildEditPointPopup(coords, index)));
+     marker.setPopup(new maplibregl.Popup({ offset: 15, closeOnClick: false }).setDOMContent(buildEditPointPopup(coords, index)));
 
      marker.on('dragend', () => {
          const newPos = marker.getLngLat();
@@ -2077,10 +2088,10 @@ map.on('click', (e) => {
      if (nearest.index >= 0 && nearest.pixelDist <= TAP_THRESHOLD_PX) {
          // Klick war nah an der Linie -> nächstgelegenen Punkt zum Bearbeiten öffnen,
          // statt (wie zuvor) unbedingt einen neuen Punkt anzuhängen.
-         new maplibregl.Popup({ offset: 15 })
+         const standalonePopup = new maplibregl.Popup({ offset: 15, closeOnClick: false })
              .setLngLat([coords[nearest.index][0], coords[nearest.index][1]])
-             .setDOMContent(buildEditPointPopup(coords, nearest.index))
              .addTo(map);
+         standalonePopup.setDOMContent(buildEditPointPopup(coords, nearest.index, () => standalonePopup.remove()));
          return;
      }
 
