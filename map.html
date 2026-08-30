@@ -787,8 +787,8 @@ function cacheTourTrackForWeatherSim() {
  }
  if (trackCoords.length < 2) return;
 
- tourTrackCoordsCache = trackCoords;
- tourWeightedData = buildWeightedTrackProgress(trackCoords);
+ tourTrackCoordsCache = fillMissingElevations(trackCoords);
+ tourWeightedData = buildWeightedTrackProgress(tourTrackCoordsCache);
 
  const currentProgress = parseFloat(tourTimeSlider.value) || 0;
  updateTimelineWeatherSimulation(currentProgress);
@@ -1335,6 +1335,55 @@ function calculateSegmentPhysics(p1, p2) {
   }
 
   return { dist: distMeters, speedFactor: Math.max(0.15, speedFactor) };
+}
+
+function fillMissingElevations(coords) {
+ // Reale GPX-Tracks haben oft einzelne Punkte ohne (oder mit fehlerhafter) Höhenangabe
+ // (z.B. GPS-Höhenausfall an Felswänden/Graten). Ein harter 0-Fallback an genau diesen
+ // Punkten würde die Höhenkurve künstlich auf 0 einbrechen lassen ("Reset mitten im
+ // Anstieg"). Stattdessen wird hier von den nächsten gültigen Nachbarpunkten interpoliert.
+ const cleaned = coords.map(c => c.slice());
+ const isValid = (v) => v !== undefined && v !== null && !isNaN(v) && v > 0;
+
+ let lastValidIdx = -1;
+ for (let i = 0; i < cleaned.length; i++) {
+     if (isValid(cleaned[i][2])) {
+         if (lastValidIdx !== -1 && i - lastValidIdx > 1) {
+             const eleStart = cleaned[lastValidIdx][2];
+             const eleEnd = cleaned[i][2];
+             for (let j = lastValidIdx + 1; j < i; j++) {
+                 const ratio = (j - lastValidIdx) / (i - lastValidIdx);
+                 cleaned[j][2] = eleStart + (eleEnd - eleStart) * ratio;
+             }
+         }
+         lastValidIdx = i;
+     }
+ }
+
+ // Führende/nachfolgende Lücken (vor dem ersten bzw. nach dem letzten gültigen Punkt)
+ // mit dem jeweils nächstgelegenen gültigen Wert auffüllen.
+ const firstValid = cleaned.findIndex(c => isValid(c[2]));
+ if (firstValid > 0) {
+     for (let j = 0; j < firstValid; j++) cleaned[j][2] = cleaned[firstValid][2];
+ }
+ let lastValid = -1;
+ for (let i = cleaned.length - 1; i >= 0; i--) { if (isValid(cleaned[i][2])) { lastValid = i; break; } }
+ if (lastValid !== -1 && lastValid < cleaned.length - 1) {
+     for (let j = lastValid + 1; j < cleaned.length; j++) cleaned[j][2] = cleaned[lastValid][2];
+ }
+
+ // Falls GAR KEIN Punkt eine gültige Höhe hat (Track ganz ohne <ele>-Tags), live vom
+ // 3D-Gelände abfragen - läuft nur einmalig beim Laden des Tracks, nicht pro Frame.
+ if (firstValid === -1) {
+     for (let i = 0; i < cleaned.length; i++) {
+         try {
+             const e = map.queryTerrainElevation([cleaned[i][0], cleaned[i][1]]);
+             cleaned[i][2] = (e && e > 0) ? e : 1000;
+         } catch (err) { cleaned[i][2] = 1000; }
+     }
+ }
+
+ return cleaned;
 }
 
 function buildWeightedTrackProgress(coords) {
