@@ -607,6 +607,8 @@ let tourRealElevationPeak = null;
 let tourHasPeak = false;
 let tourWeightedData = null;          // Tobler-gewichtete Gehzeit-Progression (wie Läufer-Marker)
 let tourTrackCoordsCache = [];
+let tourStartCoordG = null;           // Start-Koordinate, für spätere erneute Terrain-Abfrage
+let tourPeakCoordG = null;            // Gipfel-Koordinate, für spätere erneute Terrain-Abfrage
 let lastTourBounds = null;
 let isCinematicIntroActive = false;
 let turntableAnimationFrame = null;
@@ -707,6 +709,8 @@ function initTourTimelineFromParams(urlParams) {
  const startCoord = (sLat && sLng) ? { lat: parseFloat(sLat), lng: parseFloat(sLng) } : null;
  const peakCoord = (pLat && pLng) ? { lat: parseFloat(pLat), lng: parseFloat(pLng) } : null;
  tourHasPeak = !!(startCoord && peakCoord);
+ tourStartCoordG = startCoord;
+ tourPeakCoordG = peakCoord;
 
  if (startCoord) tourRealElevationStart = getElevationAt(new maplibregl.LngLat(startCoord.lng, startCoord.lat), null);
  if (peakCoord) tourRealElevationPeak = getElevationAt(new maplibregl.LngLat(peakCoord.lng, peakCoord.lat), null);
@@ -765,6 +769,21 @@ function cacheTourTrackForWeatherSim() {
  // Wird von drawGpx() bei JEDER Änderung des angezeigten Tracks aufgerufen (initiales Laden,
  // GPX-Upload, aber auch nachträgliches Kürzen/Löschen von Punkten) - so bleiben Wetter-HUD,
  // Höhen-Blend und Läufer-Marker immer mit dem tatsächlich sichtbaren Track synchron.
+
+ // Echte Geländehöhe für Start/Gipfel erneut abfragen: Beim allerersten Versuch (sofort
+ // beim Kartenstart) sind die 3D-Terrain-Kacheln oft noch nicht geladen, wodurch fälschlich
+ // auf die grobe Wettermodell-Höhe zurückgefallen wird - die einen schroffen Alpengipfel
+ // stark unterschätzen kann (z.B. Zugspitze: Modell rechnet nur mit ~2000m statt echten 2962m).
+ // Zu diesem späteren Zeitpunkt sind die Kacheln in aller Regel geladen.
+ if (tourStartCoordG) {
+     const fresh = getElevationAt(new maplibregl.LngLat(tourStartCoordG.lng, tourStartCoordG.lat), null);
+     if (fresh !== null) tourRealElevationStart = fresh;
+ }
+ if (tourPeakCoordG) {
+     const fresh = getElevationAt(new maplibregl.LngLat(tourPeakCoordG.lng, tourPeakCoordG.lat), null);
+     if (fresh !== null) tourRealElevationPeak = fresh;
+ }
+
  let trackCoords = getTrackCoordsFromGeoJson(currentGpxGeoJson);
  if (trackCoords.length < 2 && map.getSource('uploaded-gpx')) {
      trackCoords = getTrackCoordsFromGeoJson(map.getSource('uploaded-gpx')._data);
@@ -1839,7 +1858,42 @@ handleIndices.forEach(index => {
          .setLngLat([pt[0], pt[1]])
          .addTo(map);
 
-     marker.setPopup(new maplibregl.Popup({ offset: 15, closeOnClick: false }).setDOMContent(buildEditPointPopup(coords, index)));
+     // Bewusst KEIN marker.setPopup() / eingebautes Klick-Verhalten: Bei draggable Markern
+     // kann die interne Touch-Drag-Erkennung dazu führen, dass gar kein 'click'-Event mehr
+     // synthetisiert wird (Ziehen funktioniert, reines Antippen nicht). Deshalb wird ein Tap
+     // hier direkt über touchstart/touchend erkannt (Bewegung < 8px = Tap, kein Drag),
+     // zusätzlich zu einem normalen 'click'-Listener für Maus/Desktop.
+     const openPopupForThisPoint = () => {
+         new maplibregl.Popup({ offset: 15, closeOnClick: false })
+             .setLngLat([pt[0], pt[1]])
+             .setDOMContent(buildEditPointPopup(coords, index))
+             .addTo(map);
+     };
+
+     let touchStartPos = null;
+     el.addEventListener('touchstart', (ev) => {
+         if (ev.touches && ev.touches.length === 1) {
+             touchStartPos = { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
+         }
+     }, { passive: true });
+
+     el.addEventListener('touchend', (ev) => {
+         if (touchStartPos && ev.changedTouches && ev.changedTouches.length === 1) {
+             const dx = ev.changedTouches[0].clientX - touchStartPos.x;
+             const dy = ev.changedTouches[0].clientY - touchStartPos.y;
+             if (Math.sqrt(dx * dx + dy * dy) < 8) {
+                 ev.stopPropagation();
+                 ev.preventDefault();
+                 openPopupForThisPoint();
+             }
+         }
+         touchStartPos = null;
+     });
+
+     el.addEventListener('click', (ev) => {
+         ev.stopPropagation();
+         openPopupForThisPoint();
+     });
 
      marker.on('dragend', () => {
          const newPos = marker.getLngLat();
