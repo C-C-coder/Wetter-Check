@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="logo.png">
 <link rel="icon" type="image/png" href="logo.png">
 
-<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/@mapbox/togeojson@0.16.2/togeojson.js"></script>
 
 <style>
@@ -529,7 +529,7 @@ FUNKTIONEN
 
 <div id="map"></div>
 
-<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
 
 <script>
 const menuToggle = document.getElementById('menu-toggle');
@@ -926,19 +926,32 @@ function setupTerrainAndLighting() {
  try {
      map.setTerrain({ source: 'open-elevation', exaggeration: 1.75 });
      if (!map.getLayer('hillshading')) {
-         map.addLayer({ 
-             'id': 'hillshading', 
-             'type': 'hillshade', 
-             'source': 'open-elevation', 
-             'paint': { 
-                 'hillshade-shadow-color': '#040812',  
+         map.addLayer({
+             'id': 'hillshading',
+             'type': 'hillshade',
+             'source': 'open-elevation',
+             'paint': {
+                 'hillshade-shadow-color': '#040812',
                  'hillshade-highlight-color': '#ffffff',
                  'hillshade-accent-color': '#1f293d',
-                 'hillshade-illumination-direction': 315, 
-                 'hillshade-exaggeration': 1.5 
-             } 
+                 'hillshade-illumination-direction': 315,
+                 'hillshade-exaggeration': 1.5
+             }
          });
      }
+     // Atmosphärischer Dunst am Horizont - lässt entfernte Bergketten realistisch im
+     // Dunst verschwimmen, statt hart abzuschneiden. Native MapLibre-Funktion, kein
+     // Performance-Overhead durch eigenen Code.
+     try {
+         map.setSky({
+             'sky-color': '#a8d4f0',
+             'sky-horizon-blend': 0.5,
+             'horizon-color': '#c9dde8',
+             'horizon-fog-blend': 0.6,
+             'fog-color': '#d8e4ec',
+             'fog-ground-blend': 0.7
+         });
+     } catch (skyErr) { console.log("Sky/Fog nicht verfügbar:", skyErr); }
  } catch (e) { console.log("Warte auf Terrain..."); }
  restoreCustomLayers();
  updateSolarPhysics();
