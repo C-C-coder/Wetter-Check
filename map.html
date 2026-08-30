@@ -79,7 +79,7 @@
      border: 1px solid #30363d; width: 300px; max-height: calc(100vh - 100px); overflow-y: auto;
      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; transform: translateX(-20px); pointer-events: none;
  }
- .control-panel:not(.collapsed) { opacity: 1; transform: translateX(0); pointer-events: auto; }
+ .control-panel:not(.collapsed) { opacity: 1; transform: translateX(0); pointer-events: auto; z-index: 50; }
 
  .app-logo {
      display: flex; align-items: center; justify-content: space-between; gap: 6px; font-weight: 900; font-size: 16px;
@@ -343,7 +343,6 @@ SIMULATOR MENU
          <option value="liberty">🗺️ Standard (Vector)</option>
          <option value="dark">🌙 Dunkel (Night Ops)</option>
      </select>
-     <button id="sun-toggle-btn" class="ui-btn">☀️ Sonnen & God-Rays Sim</button>
  </div>
 </div>
 
@@ -353,7 +352,6 @@ SIMULATOR MENU
      <label for="gpx-file-input" class="ui-btn file-upload-btn">📂 GPX Importieren</label>
      <input type="file" id="gpx-file-input" accept=".gpx" />
      <button id="toggle-edit-gpx-btn" class="ui-btn" style="background:#8b5cf6;">✏️ Track bearbeiten & kürzen</button>
-     <button id="force-elevation-btn" class="ui-btn" style="background:#1f6feb;">📊 Höhenprofil erzwingen</button>
      <button id="export-gpx-btn" class="ui-btn export-btn" style="display:none;">💾 Route als GPX speichern</button>
  </div>
 </div>
@@ -1968,21 +1966,6 @@ function drawGpx(geojson, centerMap = false) {
  }
 }
 
-document.getElementById('force-elevation-btn').addEventListener('click', () => {
- if (currentGpxGeoJson) {
-     calculateAndRenderElevationProfile(currentGpxGeoJson);
-     elevationContainer.classList.add('open');
-     controlPanel.classList.add('collapsed');
- } else if (measurePoints.length >= 2) {
-     const geojson = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: measurePoints } }] };
-     calculateAndRenderElevationProfile(geojson);
-     elevationContainer.classList.add('open');
-     controlPanel.classList.add('collapsed');
- } else {
-     showToast("⚠️ Kein Track oder Route vorhanden.");
- }
-});
-
 async function calculateAndRenderElevationProfile(geojson) {
  try {
      if (!geojson) {
@@ -2277,8 +2260,11 @@ function updateMeasureLine() {
      measText.innerText = `Strecke: ${totalDist > 1000 ? (totalDist/1000).toFixed(2) + ' km' : Math.round(totalDist) + ' m'} | ⬆️ ${Math.round(totalAscent)}m ⬇️ ${Math.round(totalDescent)}m`;
      exportGpxBtn.style.display = 'inline-flex';
      const geojson = { type: 'Feature', geometry: { type: 'LineString', coordinates: measurePoints } };
-     if (map.getSource('measure-line')) { map.getSource('measure-line').setData(geojson); } 
+     if (map.getSource('measure-line')) { map.getSource('measure-line').setData(geojson); }
      else { map.addSource('measure-line', { type: 'geojson', data: geojson }); map.addLayer({ id: 'measure-layer', type: 'line', source: 'measure-line', paint: { 'line-color': '#38bdf8', 'line-width': 4, 'line-dasharray': [2, 2] } }); }
+     // Höhenprofil auch für manuell geplante Routen automatisch berechnen (wie bei GPX-Tracks) -
+     // macht den separaten "Höhenprofil erzwingen"-Button überflüssig.
+     calculateAndRenderElevationProfile({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: measurePoints } }] });
  }
 }
 
@@ -2309,7 +2295,6 @@ styleSelect.addEventListener('change', (e) => {
  setTimeout(() => { setupTerrainAndLighting(); map.addLayer(weather3DLayer); }, 1200);
 });
 
-const sunToggleBtn = document.getElementById('sun-toggle-btn');
 const sunControlPanel = document.getElementById('sun-control-panel');
 const sunTimeSlider = document.getElementById('sun-time-slider');
 const sunDateInput = document.getElementById('sun-date');
@@ -2319,16 +2304,8 @@ const nightOverlay = document.getElementById('night-overlay');
 
 sunDateInput.value = new Date().toISOString().split('T')[0];
 
-sunToggleBtn.addEventListener('click', () => {
- if (isCinematicIntroActive) stopCinematicIntro();
- const active = sunControlPanel.style.display === 'flex';
- sunControlPanel.style.display = active ? 'none' : 'flex';
- sunToggleBtn.classList.toggle('active', !active);
-});
-
 document.getElementById('close-sun-panel').addEventListener('click', () => {
  sunControlPanel.style.display = 'none';
- sunToggleBtn.classList.remove('active');
 });
 
 function updateSolarPhysics() {
