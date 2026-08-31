@@ -735,6 +735,7 @@ function initTourTimelineFromParams(urlParams) {
 
  if (startCoord) tourRealElevationStart = getElevationAt(new maplibregl.LngLat(startCoord.lng, startCoord.lat), null);
  if (peakCoord) tourRealElevationPeak = getElevationAt(new maplibregl.LngLat(peakCoord.lng, peakCoord.lat), null);
+ if (peakCoord && tourRealElevationPeak) peakCoord.alt = tourRealElevationPeak;
 
  if (startCoord || peakCoord) {
      document.getElementById('weather-sim-hud').classList.add('visible');
@@ -751,9 +752,43 @@ async function fetchTourForecasts(startCoord, peakCoord) {
 
  async function fetchOne(coord) {
      if (!coord) return null;
-     const url = `https://api.open-meteo.com/v1/forecast?latitude=${coord.lat}&longitude=${coord.lng}&hourly=${hourlyParams}&timezone=auto&start_date=${startDate}&end_date=${endDate}`;
-     const res = await fetch(url);
-     return res.json();
+     let url = `https://api.open-meteo.com/v1/forecast?latitude=${coord.lat}&longitude=${coord.lng}&hourly=${hourlyParams}&timezone=auto&start_date=${startDate}&end_date=${endDate}&wind_speed_unit=kmh&models=best_match`;
+     if (coord.alt) url += `&elevation=${coord.alt}`;
+     let data = await fetchAndNormalize(url);
+
+     // Absicherung: falls die Kombination aus models=best_match + Höhen-Override keine
+     // brauchbaren Niederschlagsdaten liefert (z.B. API-Fehler bei ungewöhnlicher
+     // Parameter-Kombination für sehr hohe Gipfel), ohne explizites Modell erneut abfragen -
+     // damit Niederschlag nie stillschweigend als "0mm" ausfällt.
+     if (!data || !data.hourly || !Array.isArray(data.hourly.precipitation)) {
+         let fallbackUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coord.lat}&longitude=${coord.lng}&hourly=${hourlyParams}&timezone=auto&start_date=${startDate}&end_date=${endDate}&wind_speed_unit=kmh`;
+         if (coord.alt) fallbackUrl += `&elevation=${coord.alt}`;
+         const fallbackData = await fetchAndNormalize(fallbackUrl);
+         if (fallbackData && fallbackData.hourly && Array.isArray(fallbackData.hourly.precipitation)) {
+             data = fallbackData;
+         }
+     }
+     return data;
+ }
+
+ async function fetchAndNormalize(url) {
+     try {
+         const res = await fetch(url);
+         const data = await res.json();
+         // Falls Open-Meteo bei models=best_match dennoch mit "_best_match"-Suffix antwortet
+         // (wie bei index.html mit mehreren Modellen), hier defensiv genauso entsuffixen.
+         if (data && data.hourly) {
+             Object.keys(data.hourly).forEach(key => {
+                 if (key.endsWith('_best_match')) {
+                     data.hourly[key.replace('_best_match', '')] = data.hourly[key];
+                 }
+             });
+         }
+         return data;
+     } catch (e) {
+         console.log("Wetter-Abruf fehlgeschlagen:", e);
+         return null;
+     }
  }
 
  try {
