@@ -2,31 +2,58 @@ name: Tour Weather Cron
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # Fallback-Intervall (alle 15 Minuten)
+    - cron: '*/15 * * * *'   # Fallback-Intervall (alle 15 Minuten)
   repository_dispatch:
-    types: [trigger-weather-check] # Ermöglicht den sofortigen Start von außen
-  workflow_dispatch: # Erlaubt den manuellen Start über den Button
+    types: [trigger-weather-check]   # Sofortiger Start von außen
+  workflow_dispatch:
+    inputs:
+      selftest:
+        description: 'Statt des normalen Laufs den Selbsttest der Engine ausführen'
+        type: boolean
+        default: false
+
+# Verhindert, dass sich Läufe überlappen. Bei einem 15-Minuten-Takt sonst möglich,
+# wenn ein Lauf durch langsame API-Antworten hängt - überlappende Läufe könnten
+# dieselbe Warnung doppelt zustellen.
+concurrency:
+  group: weather-check
+  cancel-in-progress: false
 
 jobs:
   run-weather-check:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    timeout-minutes: 10   # Bricht hängende Läufe ab, statt Actions-Minuten zu verbrennen
 
+    steps:
+      # checkout@v4 und setup-python@v5 laufen auf Node 20. GitHub entfernt Node 20
+      # am 16.09.2026 von den Runnern - daher auf die node24-fähigen Versionen gehoben.
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # Python 3.10: google-api-core stellt die Unterstützung am 04.10.2026 ein
+      # (die FutureWarning im Log). 3.12 ist stabil und lange versorgt.
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: '3.12'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests firebase-admin google-api-core==2.34.0 pytz
+          pip install -r requirements.txt
 
       - name: Run weather check script
+        if: ${{ github.event.inputs.selftest != 'true' }}
         env:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
-        run: |
-          python check_weather.py
-          
+        run: python check_weather.py
+
+      # Manuell über "Run workflow" auslösbar: prüft GeoSphere-Parser, Open-Meteo-
+      # Parameter und Firestore-Zugriff und schlägt fehl, wenn etwas nicht stimmt.
+      - name: Selbsttest der Engine
+        if: ${{ github.event.inputs.selftest == 'true' }}
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+        run: python check_weather.py --selftest
+        
