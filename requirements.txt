@@ -1,0 +1,6 @@
+# Abhängigkeiten der Wetter-Engine.
+# Ausgelagert, damit setup-python den pip-Cache nutzen kann - der Install-Schritt
+# brauchte im Log 10 von 24 Sekunden Gesamtlaufzeit.
+requests>=2.32
+firebase-admin>=6.5
+pytz>=2024.1
