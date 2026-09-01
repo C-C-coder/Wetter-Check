@@ -19,88 +19,168 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
 <style>
- :root { 
-     --primary: #1e293b; 
-     --accent: #10b981; 
-     --accent-hover: #059669; 
-     --bg: #f8fafc; 
-     --card-bg: #ffffff; 
-     --border: #e2e8f0; 
-     --text: #334155; 
-     --text-light: #64748b; 
+ :root {
+     --primary: #f2f6fa;
+     --primary-dim: #a8b8cc;
+     --accent: #5de8b0;
+     --accent-hover: #3ecf98;
+     --accent-glow: rgba(93,232,176,0.45);
+     --bg: #0a1220;
+     --bg-2: #101c30;
+     --card-bg: rgba(255,255,255,0.05);
+     --card-border: rgba(255,255,255,0.09);
+     --border: rgba(255,255,255,0.12);
+     --text: #e6ecf4;
+     --text-light: #7a8ba3;
+     --danger: #ef4444;
+     --warning: #f59e0b;
+     --success: #5de8b0;
+     --contour: rgba(93,232,176,0.06);
+     --surface: #16243a;
+ }
+
+ body {
+     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+     background: linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+     color: var(--text);
+     margin: 0;
+     padding: 15px;
+     display: flex;
+     justify-content: center;
+ }
+
+ /* --- Dekorativer Hintergrund: Höhenlinien & Bergsilhouette --- */
+ .bg-decor {
+     position: fixed;
+     inset: 0;
+     z-index: 0;
+     overflow: hidden;
+     pointer-events: none;
+ }
+ .bg-contours {
+     position: absolute;
+     inset: -10% -10%;
+     width: 120%;
+     height: 120%;
+ }
+ .bg-contours-a { opacity: 0.6; }
+ .bg-contours-b {
+     opacity: 0.4;
+     animation: contourDrift 75s ease-in-out infinite;
+ }
+ @keyframes contourDrift {
+     0%   { transform: translateY(0) scale(1); }
+     50%  { transform: translateY(-2.5%) scale(1.03); }
+     100% { transform: translateY(0) scale(1); }
+ }
+ .bg-mountains {
+     position: absolute;
+     left: 0;
+     right: 0;
+     bottom: 0;
+     width: 100%;
+     height: 22vh;
+     min-height: 140px;
+ }
+
+ .container {
+     position: relative;
+     z-index: 1;
+     width: 100%;
+     max-width: 520px;
+     background: linear-gradient(180deg, rgba(16,28,48,0.92), rgba(10,18,32,0.92));
+     padding: 20px;
+     border-radius: 24px;
+     border: 1px solid var(--card-border);
+     box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.4);
  }
  
- body { 
-     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-     background: var(--bg); 
-     color: var(--text); 
-     margin: 0; 
-     padding: 15px; 
-     display: flex; 
-     justify-content: center; 
+ .header {
+     text-align: center;
+     margin-bottom: 16px;
+     position: relative;
  }
- 
- .container { 
-     width: 100%; 
-     max-width: 520px; 
-     background: var(--card-bg); 
-     padding: 20px; 
-     border-radius: 24px; 
-     box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); 
+
+ .logo-img {
+     width: 80px;
+     height: 80px;
+     object-fit: contain;
+     margin-bottom: 8px;
+     border-radius: 16px;
  }
- 
- .header { 
-     text-align: center; 
-     margin-bottom: 16px; 
+
+ h1 {
+     font-size: 1.3rem;
+     color: var(--primary);
+     margin: 0 0 4px 0;
+     display: inline-flex;
+     align-items: center;
+     gap: 6px;
  }
- 
- .logo-img { 
-     width: 80px; 
-     height: 80px; 
-     object-fit: contain; 
-     margin-bottom: 8px; 
-     border-radius: 16px; 
+
+ .header-weather-cluster {
+     position: relative;
+     display: inline-block;
+     width: 22px;
+     height: 20px;
+     vertical-align: middle;
+     pointer-events: none;
  }
- 
- h1 { 
-     font-size: 1.3rem; 
-     color: var(--primary); 
-     margin: 0 0 4px 0; 
+ .header-weather-cluster svg { width: 22px; height: 14px; display: block; }
+ .header-weather-cluster .drop {
+     position: absolute;
+     top: 13px;
+     width: 2px;
+     height: 5px;
+     border-radius: 1px;
+     background: var(--accent);
+     opacity: 0;
+     animation: dropFall 2.6s ease-in infinite;
  }
- 
- .subtitle { 
-     font-size: 0.85rem; 
-     color: var(--text-light); 
-     margin: 0; 
+ .header-weather-cluster .drop.d1 { left: 4px; animation-delay: 0s; }
+ .header-weather-cluster .drop.d2 { left: 11px; animation-delay: 0.7s; }
+ .header-weather-cluster .drop.d3 { left: 17px; animation-delay: 1.4s; }
+ @keyframes dropFall {
+     0%   { opacity: 0; transform: translateY(0); }
+     20%  { opacity: 1; }
+     80%  { opacity: 0.3; }
+     100% { opacity: 0; transform: translateY(7px); }
  }
- 
- .form-group { 
-     margin-bottom: 14px; 
+
+ .subtitle {
+     font-size: 0.85rem;
+     color: var(--text-light);
+     margin: 0;
  }
- 
- label { 
-     display: block; 
-     font-size: 0.85rem; 
-     font-weight: 600; 
-     margin-bottom: 5px; 
-     color: var(--primary); 
+
+ .form-group {
+     margin-bottom: 14px;
  }
- 
- input, select { 
-     width: 100%; 
-     padding: 10px 12px; 
-     border: 1px solid var(--border); 
-     border-radius: 10px; 
-     font-size: 0.9rem; 
-     box-sizing: border-box; 
-     background: #fff; 
-     color: var(--text); 
-     outline: none; 
-     transition: border-color 0.2s; 
+
+ label {
+     display: block;
+     font-size: 0.85rem;
+     font-weight: 600;
+     margin-bottom: 5px;
+     color: var(--primary);
  }
- 
- input:focus, select:focus { 
-     border-color: var(--accent); 
+
+ input, select {
+     width: 100%;
+     padding: 10px 12px;
+     border: 1px solid var(--border);
+     border-radius: 10px;
+     font-size: 0.9rem;
+     box-sizing: border-box;
+     background: rgba(255,255,255,0.06);
+     color: var(--text);
+     outline: none;
+     transition: border-color 0.2s, box-shadow 0.2s;
+ }
+
+ input:focus, select:focus {
+     border-color: var(--accent);
+     box-shadow: 0 0 0 3px var(--accent-glow);
  }
  
  .row { 
@@ -112,75 +192,85 @@
      flex: 1; 
  }
  
- .btn { 
-     width: 100%; 
-     background: var(--accent); 
-     color: white; 
-     border: none; 
-     padding: 12px; 
-     border-radius: 12px; 
-     font-size: 0.95rem; 
-     font-weight: 600; 
-     cursor: pointer; 
-     transition: background 0.2s; 
-     margin-top: 5px; 
+ .btn, .action-btn, .gpx-btn, .map-link-btn, .share-btn, .export-btn, .advanced-toggle, .clear-small, .btn-push {
+     transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s;
  }
- 
- .btn:hover { 
-     background: var(--accent-hover); 
+ .btn:active, .action-btn:active, .gpx-btn:active, .map-link-btn:active, .share-btn:active, .export-btn:active, .advanced-toggle:active, .clear-small:active, .btn-push:active {
+     transform: scale(0.98);
  }
- 
- .btn-push { 
-     background: #8b5cf6; 
-     margin-top: 8px; 
-     display: none; 
- } 
- 
- .btn-push:hover { 
-     background: #7c3aed; 
+ .btn:hover, .gpx-btn:hover {
+     box-shadow: 0 0 14px 2px var(--accent-glow);
  }
- 
- .btn-push.active { 
-     background: #ef4444; 
- } 
- 
- .btn-push.active:hover { 
-     background: #dc2626; 
+
+ .btn {
+     width: 100%;
+     background: var(--accent);
+     color: #062b1e;
+     border: none;
+     padding: 12px;
+     border-radius: 12px;
+     font-size: 0.95rem;
+     font-weight: 600;
+     cursor: pointer;
+     margin-top: 5px;
  }
- 
- .results { 
-     margin-top: 20px; 
-     border-top: 1px solid var(--border); 
-     padding-top: 15px; 
+
+ .btn:hover {
+     background: var(--accent-hover);
  }
- 
- .warning-box { 
-     background: #fff7ed; 
-     border-left: 4px solid #f97316; 
-     padding: 10px; 
-     border-radius: 8px; 
-     font-size: 0.85rem; 
-     margin-top: 10px; 
-     color: #9a3412; 
+
+ .btn-push {
+     background: #8b5cf6;
+     margin-top: 8px;
+     display: none;
  }
- 
- .share-btn, .export-btn, .map-link-btn { 
-     background: var(--primary); 
-     color: #fff; 
-     margin-top: 8px; 
-     border: none; 
-     padding: 10px; 
-     border-radius: 10px; 
-     width: 100%; 
-     cursor: pointer; 
-     font-weight: 600; 
-     font-size: 0.85rem; 
+
+ .btn-push:hover {
+     background: #7c3aed;
+ }
+
+ .btn-push.active {
+     background: #ef4444;
+ }
+
+ .btn-push.active:hover {
+     background: #dc2626;
+ }
+
+ .results {
+     margin-top: 20px;
+     border-top: 1px solid var(--border);
+     padding-top: 15px;
+ }
+
+ .warning-box {
+     background: rgba(245,158,11,0.12);
+     border-left: 4px solid var(--warning);
+     padding: 10px;
+     border-radius: 8px;
+     font-size: 0.85rem;
+     margin-top: 10px;
+     color: #fcd34d;
+     animation: fadeInUp 0.5s ease both;
+ }
+
+ .share-btn, .export-btn, .map-link-btn {
+     background: var(--surface);
+     color: #fff;
+     margin-top: 8px;
+     border: none;
+     padding: 10px;
+     border-radius: 10px;
+     width: 100%;
+     cursor: pointer;
+     font-weight: 600;
+     font-size: 0.85rem;
      text-align: center;
      text-decoration: none;
      display: block;
      box-sizing: border-box;
  }
- 
+
  .map-link-btn {
      background: #0284c7;
  }
@@ -188,179 +278,189 @@
      background: #0369a1;
  }
 
- .link-button { 
-     display: flex; 
-     justify-content: space-between; 
-     align-items: center; 
-     background: #e2e8f0; 
-     color: var(--primary); 
-     text-decoration: none; 
-     padding: 10px 12px; 
-     border-radius: 10px; 
-     font-size: 0.85rem; 
-     font-weight: 600; 
-     margin-top: 8px; 
+ .link-button {
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+     background: var(--surface);
+     color: var(--primary);
+     text-decoration: none;
+     padding: 10px 12px;
+     border-radius: 10px;
+     font-size: 0.85rem;
+     font-weight: 600;
+     margin-top: 8px;
+     transition: transform 0.15s ease, box-shadow 0.15s ease;
+ }
+ .link-button:active { transform: scale(0.98); }
+
+ .card-section {
+     background: var(--card-bg);
+     border: 1px solid var(--card-border);
+     border-radius: 16px;
+     padding: 15px;
+     margin-bottom: 12px;
+     animation: fadeInUp 0.5s ease both;
  }
  
- .card-section { 
-     background: #f8fafc; 
-     border: 1px solid var(--border); 
-     border-radius: 16px; 
-     padding: 15px; 
-     margin-bottom: 12px; 
+ .fav-bar {
+     display: flex;
+     gap: 6px;
+     margin-top: 10px;
+     align-items: center;
+     flex-wrap: wrap;
+ }
+
+ .action-btn {
+     background: #3b82f6;
+     color: white;
+     padding: 0 10px;
+     font-size: 13px;
+     white-space: nowrap;
+     border: none;
+     border-radius: 10px;
+     cursor: pointer;
+ }
+
+ .detected-location {
+     font-size: 12px;
+     color: #7dd3fc;
+     margin-top: 6px;
+     font-weight: 600;
+ }
+
+ .advanced-panel {
+     display: none;
+     margin-top: 10px;
+ }
+
+ .advanced-toggle {
+     width: 100%;
+     background: #475569;
+     color: #fff;
+     padding: 10px 12px;
+     border-radius: 11px;
+     font-size: 13px;
+     margin-top: 10px;
+     border: none;
+     cursor: pointer;
+ }
+
+ .peak-section {
+     margin-top: 12px;
+ }
+
+ .selected-peak {
+     background: rgba(93,232,176,0.12);
+     border: 1px solid rgba(93,232,176,0.4);
+     color: #a8f5d6;
+     padding: 10px;
+     border-radius: 10px;
+     font-size: 12px;
+     margin-top: 8px;
+ }
+
+ .small-note {
+     font-size: 11px;
+     color: var(--text-light);
+     line-height: 1.4;
+ }
+
+ .clear-small {
+     background: rgba(255,255,255,0.08);
+     color: var(--text);
+     padding: 8px 10px;
+     font-size: 11px;
+     border: none;
+     border-radius: 8px;
+     cursor: pointer;
+ }
+
+ .tour-grid {
+     display: grid;
+     grid-template-columns: 1fr 1fr;
+     gap: 8px;
+     margin-top: 6px;
+ }
+
+ .tour-checkbox {
+     display: flex;
+     align-items: center;
+     gap: 6px;
+     font-size: 13px;
+     background: rgba(255,255,255,0.04);
+     padding: 8px 10px;
+     border-radius: 8px;
+     border: 1px solid var(--border);
+     cursor: pointer;
+     transition: border-color 0.2s;
+ }
+
+ .tour-checkbox:has(input:checked) {
+     animation: checkPulse 0.4s ease;
+     border-color: var(--accent);
+ }
+
+ .tour-checkbox input {
+     width: auto;
+     margin: 0;
+ }
+
+ .gpx-box {
+     background: rgba(93,232,176,0.08);
+     border: 1px dashed var(--accent);
+     border-radius: 16px;
+     padding: 12px;
+     margin-bottom: 12px;
+     text-align: center;
+ }
+
+ .gpx-btn {
+     background: var(--accent);
+     color: #062b1e;
+     padding: 10px 14px;
+     font-size: 13px;
+     border-radius: 10px;
+     cursor: pointer;
+     display: inline-block;
+     font-weight: 600;
+     border: none;
  }
  
- .fav-bar { 
-     display: flex; 
-     gap: 6px; 
-     margin-top: 10px; 
-     align-items: center; 
-     flex-wrap: wrap; 
+ .slot {
+     padding: 14px;
+     margin-bottom: 12px;
+     border-radius: 12px;
+     font-size: 13px;
+     animation: fadeInUp 0.5s ease both;
  }
- 
- .action-btn { 
-     background: #3b82f6; 
-     color: white; 
-     padding: 0 10px; 
-     font-size: 13px; 
-     white-space: nowrap; 
-     border: none; 
-     border-radius: 10px; 
-     cursor: pointer; 
+
+ .status-green {
+     background: rgba(93,232,176,0.10);
+     border-left: 5px solid var(--success);
+     color: #a8f5d6;
  }
- 
- .detected-location { 
-     font-size: 12px; 
-     color: #3b82f6; 
-     margin-top: 6px; 
-     font-weight: 600; 
+
+ .status-orange {
+     background: rgba(245,158,11,0.10);
+     border-left: 5px solid var(--warning);
+     color: #fcd34d;
  }
- 
- .advanced-panel { 
-     display: none; 
-     margin-top: 10px; 
+
+ .status-red {
+     background: rgba(239,68,68,0.10);
+     border-left: 5px solid var(--danger);
+     color: #fca5a5;
  }
- 
- .advanced-toggle { 
-     width: 100%; 
-     background: #64748b; 
-     color: #fff; 
-     padding: 10px 12px; 
-     border-radius: 11px; 
-     font-size: 13px; 
-     margin-top: 10px; 
-     border: none; 
-     cursor: pointer; 
- }
- 
- .peak-section { 
-     margin-top: 12px; 
- }
- 
- .selected-peak { 
-     background: #ecfdf5; 
-     border: 1px solid #a7f3d0; 
-     color: #065f46; 
-     padding: 10px; 
-     border-radius: 10px; 
-     font-size: 12px; 
-     margin-top: 8px; 
- }
- 
- .small-note { 
-     font-size: 11px; 
-     color: var(--text-light); 
-     line-height: 1.4; 
- }
- 
- .clear-small { 
-     background: #e2e8f0; 
-     color: #334155; 
-     padding: 8px 10px; 
-     font-size: 11px; 
-     border: none; 
-     border-radius: 8px; 
-     cursor: pointer; 
- }
- 
- .tour-grid { 
-     display: grid; 
-     grid-template-columns: 1fr 1fr; 
-     gap: 8px; 
-     margin-top: 6px; 
- }
- 
- .tour-checkbox { 
-     display: flex; 
-     align-items: center; 
-     gap: 6px; 
-     font-size: 13px; 
-     background: #fff; 
-     padding: 8px 10px; 
-     border-radius: 8px; 
-     border: 1px solid var(--border); 
-     cursor: pointer; 
- }
- 
- .tour-checkbox input { 
-     width: auto; 
-     margin: 0; 
- }
- 
- .gpx-box { 
-     background: #f0fdf4; 
-     border: 1px dashed #10b981; 
-     border-radius: 16px; 
-     padding: 12px; 
-     margin-bottom: 12px; 
-     text-align: center; 
- }
- 
- .gpx-btn { 
-     background: #10b981; 
-     color: white; 
-     padding: 10px 14px; 
-     font-size: 13px; 
-     border-radius: 10px; 
-     cursor: pointer; 
-     display: inline-block; 
-     font-weight: 600; 
-     border: none; 
- }
- 
- .slot { 
-     padding: 14px; 
-     margin-bottom: 12px; 
-     border-radius: 12px; 
-     font-size: 13px; 
- }
- 
- .status-green { 
-     background: #ecfdf5; 
-     border-left: 5px solid #10b981; 
-     color: #065f46; 
- }
- 
- .status-orange { 
-     background: #fff7ed; 
-     border-left: 5px solid #f59e0b; 
-     color: #9a3412; 
- }
- 
- .status-red { 
-     background: #fef2f2; 
-     border-left: 5px solid #ef4444; 
-     color: #7f1d1d; 
- }
- 
- .weather-split { 
-     display: grid; 
-     grid-template-columns: 1fr 1fr; 
-     gap: 8px; 
-     margin: 8px 0; 
-     background: rgba(255,255,255,0.6); 
-     padding: 8px; 
-     border-radius: 8px; 
+
+ .weather-split {
+     display: grid;
+     grid-template-columns: 1fr 1fr;
+     gap: 8px;
+     margin: 8px 0;
+     background: rgba(255,255,255,0.05);
+     padding: 8px;
+     border-radius: 8px;
  }
  
  .weather-split.single-col { 
@@ -375,125 +475,196 @@
      color: var(--primary); 
  }
  
- .risk-hero { 
-     border-radius: 18px; 
-     padding: 18px; 
-     margin-bottom: 14px; 
-     text-align: center; 
-     border: 1px solid var(--border); 
+ .risk-hero {
+     position: relative;
+     overflow: hidden;
+     border-radius: 18px;
+     padding: 18px;
+     margin-bottom: 14px;
+     text-align: center;
+     border: 1px solid var(--border);
+     animation: fadeInUp 0.5s ease both;
  }
- 
- .risk-green { 
-     background: #ecfdf5; 
-     border-color: #a7f3d0; 
-     color: #065f46; 
+
+ .risk-hero::before {
+     content: '';
+     position: absolute;
+     inset: 0;
+     background-repeat: no-repeat;
+     background-position: right -14px bottom -14px;
+     background-size: 130px;
+     opacity: 0.12;
+     pointer-events: none;
  }
- 
- .risk-orange { 
-     background: #fff7ed; 
-     border-color: #fdba74; 
-     color: #9a3412; 
+
+ .risk-green {
+     background: rgba(93,232,176,0.10);
+     border-color: rgba(93,232,176,0.35);
+     color: #a8f5d6;
  }
- 
- .risk-red { 
-     background: #fef2f2; 
-     border-color: #fecaca; 
-     color: #7f1d1d; 
+ .risk-green::before {
+     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='22' fill='%235de8b0'/%3E%3Cg stroke='%235de8b0' stroke-width='5' stroke-linecap='round'%3E%3Cline x1='50' y1='5' x2='50' y2='18'/%3E%3Cline x1='50' y1='82' x2='50' y2='95'/%3E%3Cline x1='5' y1='50' x2='18' y2='50'/%3E%3Cline x1='82' y1='50' x2='95' y2='50'/%3E%3Cline x1='16' y1='16' x2='25' y2='25'/%3E%3Cline x1='75' y1='75' x2='84' y2='84'/%3E%3Cline x1='84' y1='16' x2='75' y2='25'/%3E%3Cline x1='25' y1='75' x2='16' y2='84'/%3E%3C/g%3E%3C/svg%3E");
  }
- 
- .risk-icon { 
-     font-size: 34px; 
-     line-height: 1.1; 
+
+ .risk-orange {
+     background: rgba(245,158,11,0.10);
+     border-color: rgba(245,158,11,0.35);
+     color: #fcd34d;
  }
- 
- .risk-title { 
-     font-size: 20px; 
-     font-weight: 800; 
-     margin: 5px 0; 
+ .risk-orange::before {
+     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cellipse cx='45' cy='55' rx='32' ry='20' fill='%23f59e0b'/%3E%3Cellipse cx='68' cy='48' rx='20' ry='15' fill='%23f59e0b'/%3E%3C/svg%3E");
  }
- 
- .risk-summary { 
-     font-size: 13px; 
-     margin-top: 8px; 
-     line-height: 1.4; 
-     text-align: left; 
-     background: rgba(255,255,255,0.6); 
-     padding: 10px; 
-     border-radius: 10px; 
+
+ .risk-red {
+     background: rgba(239,68,68,0.10);
+     border-color: rgba(239,68,68,0.35);
+     color: #fca5a5;
  }
- 
- .trend-box { 
-     margin: 12px 0; 
-     padding: 12px; 
-     border-radius: 12px; 
-     background: #f1f5f9; 
-     border: 1px solid var(--border); 
-     font-size: 13px; 
-     line-height: 1.45; 
+ .risk-red::before {
+     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cellipse cx='48' cy='40' rx='34' ry='20' fill='%23ef4444'/%3E%3Cpolygon points='50,55 35,80 48,80 40,100 68,68 53,68 62,55' fill='%23ef4444'/%3E%3C/svg%3E");
  }
- 
- .trend-good { 
-     border-color: #a7f3d0; 
-     background: #ecfdf5; 
-     color: #065f46; 
+
+ .risk-icon {
+     font-size: 34px;
+     line-height: 1.1;
  }
- 
- .trend-warn { 
-     border-color: #fdba74; 
-     background: #fff7ed; 
-     color: #9a3412; 
+
+ .risk-title {
+     font-size: 20px;
+     font-weight: 800;
+     margin: 5px 0;
  }
- 
- .trend-danger { 
-     border-color: #fecaca; 
-     background: #fef2f2; 
-     color: #7f1d1d; 
+
+ .risk-summary {
+     position: relative;
+     font-size: 13px;
+     margin-top: 8px;
+     line-height: 1.4;
+     text-align: left;
+     background: rgba(255,255,255,0.06);
+     padding: 10px;
+     border-radius: 10px;
  }
- 
- .live-tour-box { 
-     background: #eff6ff; 
-     border: 1px solid #bfdbfe; 
-     color: #1e3a8a; 
-     padding: 14px; 
-     border-radius: 14px; 
-     margin-bottom: 12px; 
-     font-size: 13px; 
-     line-height: 1.45; 
+
+ /* --- 3D-Ampel-Komponente --- */
+ .ampel-3d {
+     display: flex;
+     justify-content: center;
+     margin-bottom: 6px;
  }
- 
- .live-tour-box.live-alert { 
-     background: #fff7ed; 
-     border-color: #fdba74; 
-     color: #9a3412; 
+ .ampel-case {
+     position: relative;
+     display: inline-flex;
+     gap: 10px;
+     padding: 12px 14px;
+     border-radius: 14px;
+     background: linear-gradient(145deg,#141f30,#0a1018);
+     border-top: 1px solid rgba(255,255,255,0.08);
+     box-shadow: inset 0 2px 4px rgba(0,0,0,0.6), 0 4px 10px rgba(0,0,0,0.4);
  }
- 
- .live-tour-box.live-danger { 
-     background: #fef2f2; 
-     border-color: #fecaca; 
-     color: #7f1d1d; 
+ .ampel-light {
+     width: 22px;
+     height: 22px;
+     border-radius: 50%;
+     background: radial-gradient(circle at 35% 30%, #3a2a2a, #200f0f);
+     box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
+     transition: box-shadow 0.3s ease, background 0.3s ease;
  }
- 
- .live-tour-head { 
-     display: flex; 
-     justify-content: space-between; 
-     align-items: center; 
-     gap: 8px; 
-     margin-bottom: 7px; 
+ .ampel-light.amber { background: radial-gradient(circle at 35% 30%, #3a2f1a, #201a0a); }
+ .ampel-light.green { background: radial-gradient(circle at 35% 30%, #1a3a2c, #0a2018); }
+ .ampel-light.red.on {
+     background: radial-gradient(circle at 32% 28%, #ff9d9d, #ef4444 45%, #7f1d1d 100%);
+     box-shadow: 0 0 16px 4px rgba(239,68,68,0.55);
+     animation: ampel-pulse 2.5s ease-in-out infinite;
  }
- 
- .live-dot { 
-     display: inline-block; 
-     width: 8px; 
-     height: 8px; 
-     border-radius: 50%; 
-     background: #10b981; 
-     margin-right: 6px; 
-     box-shadow: 0 0 0 3px rgba(16,185,129,.15); 
+ .ampel-light.amber.on {
+     background: radial-gradient(circle at 32% 28%, #ffe1a3, #f59e0b 45%, #92600a 100%);
+     box-shadow: 0 0 16px 4px rgba(245,158,11,0.55);
+     animation: ampel-pulse 2.5s ease-in-out infinite;
  }
- 
- .live-muted { 
-     font-size: 11px; 
-     color: #64748b; 
+ .ampel-light.green.on {
+     background: radial-gradient(circle at 32% 28%, #b9ffe2, #5de8b0 45%, #1c7a54 100%);
+     box-shadow: 0 0 16px 4px var(--accent-glow);
+     animation: ampel-pulse 2.5s ease-in-out infinite;
+ }
+ @keyframes ampel-pulse {
+     0%, 100% { transform: scale(1); }
+     50% { transform: scale(1.04); }
+ }
+
+ .trend-box {
+     margin: 12px 0;
+     padding: 12px;
+     border-radius: 12px;
+     background: var(--card-bg);
+     border: 1px solid var(--border);
+     font-size: 13px;
+     line-height: 1.45;
+     animation: fadeInUp 0.5s ease both;
+ }
+
+ .trend-good {
+     border-color: rgba(93,232,176,0.35);
+     background: rgba(93,232,176,0.10);
+     color: #a8f5d6;
+ }
+
+ .trend-warn {
+     border-color: rgba(245,158,11,0.35);
+     background: rgba(245,158,11,0.10);
+     color: #fcd34d;
+ }
+
+ .trend-danger {
+     border-color: rgba(239,68,68,0.35);
+     background: rgba(239,68,68,0.10);
+     color: #fca5a5;
+ }
+
+ .live-tour-box {
+     background: rgba(56,189,248,0.10);
+     border: 1px solid rgba(56,189,248,0.35);
+     color: #bae6fd;
+     padding: 14px;
+     border-radius: 14px;
+     margin-bottom: 12px;
+     font-size: 13px;
+     line-height: 1.45;
+ }
+
+ .live-tour-box.live-alert {
+     background: rgba(245,158,11,0.10);
+     border-color: rgba(245,158,11,0.35);
+     color: #fcd34d;
+ }
+
+ .live-tour-box.live-danger {
+     background: rgba(239,68,68,0.10);
+     border-color: rgba(239,68,68,0.35);
+     color: #fca5a5;
+ }
+
+ .live-tour-head {
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+     gap: 8px;
+     margin-bottom: 7px;
+ }
+
+ .live-dot {
+     display: inline-block;
+     width: 8px;
+     height: 8px;
+     border-radius: 50%;
+     background: var(--success);
+     margin-right: 6px;
+     box-shadow: 0 0 0 3px var(--accent-glow);
+ }
+
+ .live-muted {
+     font-size: 11px;
+     color: var(--text-light);
  }
  
  .live-row { 
@@ -503,71 +674,114 @@
      margin-top: 5px; 
  }
 
- #mapModal, #startMapModal, #peakMapModal { 
-     display: none; 
-     position: fixed; 
-     z-index: 1000; 
-     left: 0; 
-     top: 0; 
-     width: 100%; 
-     height: 100%; 
-     background-color: rgba(0,0,0,0.5); 
-     align-items: center; 
-     justify-content: center; 
+ #mapModal, #startMapModal, #peakMapModal {
+     display: none;
+     position: fixed;
+     z-index: 1000;
+     left: 0;
+     top: 0;
+     width: 100%;
+     height: 100%;
+     background-color: rgba(0,0,0,0.7);
+     align-items: center;
+     justify-content: center;
  }
- 
- #mapContainerWrapper, #startMapContainerWrapper, #peakMapContainerWrapper { 
-     background: #fff; 
-     width: 90%; 
-     max-width: 500px; 
-     height: 450px; 
-     border-radius: 16px; 
-     display: flex; 
-     flex-direction: column; 
-     overflow: hidden; 
-     box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+
+ #mapContainerWrapper, #startMapContainerWrapper, #peakMapContainerWrapper {
+     background: var(--bg-2);
+     width: 90%;
+     max-width: 500px;
+     height: 450px;
+     border-radius: 16px;
+     display: flex;
+     flex-direction: column;
+     overflow: hidden;
+     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
  }
- 
- #mapElement, #startMapElement, #peakMapElement { 
-     flex: 1; 
-     width: 100%; 
+
+ #mapElement, #startMapElement, #peakMapElement {
+     flex: 1;
+     width: 100%;
  }
- 
- .map-modal-header { 
-     padding: 12px 16px; 
-     background: var(--primary); 
-     color: white; 
-     display: flex; 
-     justify-content: space-between; 
-     align-items: center; 
-     font-weight: 600; 
-     font-size: 0.9rem; 
+
+ .map-modal-header {
+     padding: 12px 16px;
+     background: linear-gradient(145deg,#1b2940,#101c30);
+     color: #fff;
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+     font-weight: 600;
+     font-size: 0.9rem;
  }
- 
- .map-modal-footer { 
-     padding: 10px; 
-     background: #f8fafc; 
-     display: flex; 
-     justify-content: flex-end; 
-     gap: 8px; 
-     border-top: 1px solid var(--border); 
+
+ .map-modal-footer {
+     padding: 10px;
+     background: var(--bg-2);
+     display: flex;
+     justify-content: flex-end;
+     gap: 8px;
+     border-top: 1px solid var(--border);
+ }
+
+ /* --- Animationen --- */
+ @keyframes fadeInUp {
+     from { opacity: 0; transform: translateY(6px); }
+     to   { opacity: 1; transform: translateY(0); }
+ }
+ @keyframes checkPulse {
+     0%   { box-shadow: 0 0 0 0 var(--accent-glow); }
+     70%  { box-shadow: 0 0 0 6px rgba(93,232,176,0); }
+     100% { box-shadow: 0 0 0 0 rgba(93,232,176,0); }
+ }
+
+ @media (prefers-reduced-motion: reduce) {
+     *, *::before, *::after {
+         animation-duration: 0.01ms !important;
+         animation-iteration-count: 1 !important;
+         transition-duration: 0.01ms !important;
+         scroll-behavior: auto !important;
+     }
+     .bg-contours-b { animation: none !important; }
  }
 </style>
 </head>
 <body>
+<div class="bg-decor" aria-hidden="true">
+ <svg class="bg-contours bg-contours-a" viewBox="0 0 400 800" preserveAspectRatio="none">
+     <path d="M-20,560 C40,520 100,545 170,510 C240,475 300,510 360,485 C400,468 430,480 440,500 C450,540 400,570 330,580 C260,590 190,615 120,600 C60,588 10,590 -20,560 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M-30,480 C50,430 130,460 210,420 C290,380 360,410 430,390 C460,470 420,510 340,520 C260,530 170,560 90,540 C20,523 -20,510 -30,480 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M10,650 C90,610 160,635 230,605 C300,575 360,605 410,600 C420,650 370,680 300,685 C230,690 150,705 90,685 C40,668 5,670 10,650 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M-10,300 C70,260 150,285 230,250 C310,215 370,245 420,225 C440,290 400,325 320,335 C240,345 160,370 80,355 C30,345 -15,335 -10,300 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M20,150 C100,115 175,140 250,110 C320,82 375,105 415,95 C425,150 385,180 310,190 C235,200 160,215 95,200 C55,191 15,180 20,150 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M0,720 C80,695 150,710 220,690 C300,668 350,690 400,680 C405,715 365,735 300,738 C230,742 150,750 90,738 C45,728 -5,738 0,720 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+ </svg>
+ <svg class="bg-contours bg-contours-b" viewBox="0 0 400 800" preserveAspectRatio="none">
+     <path d="M0,540 C60,500 120,525 190,490 C260,455 320,490 380,465 C410,450 440,462 450,480 C460,520 410,548 340,560 C270,572 200,595 130,580 C70,568 30,568 0,540 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M-10,460 C70,410 150,440 230,400 C310,360 380,390 450,370 C480,450 440,490 360,500 C280,510 190,540 110,520 C40,503 0,490 -10,460 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M30,630 C110,590 180,615 250,585 C320,555 380,585 430,580 C440,630 390,660 320,665 C250,670 170,685 110,665 C60,648 25,650 30,630 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M10,280 C90,240 170,265 250,230 C330,195 390,225 440,205 C460,270 420,305 340,315 C260,325 180,350 100,335 C50,325 5,315 10,280 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M40,130 C120,95 195,120 270,90 C340,62 395,85 435,75 C445,130 405,160 330,170 C255,180 180,195 115,180 C75,171 35,160 40,130 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+     <path d="M20,700 C100,675 170,690 240,670 C320,648 370,670 420,660 C425,695 385,715 320,718 C250,722 170,730 110,718 C65,708 15,718 20,700 Z" stroke="var(--contour)" fill="none" stroke-width="1"/>
+ </svg>
+ <svg class="bg-mountains" viewBox="0 0 400 100" preserveAspectRatio="none">
+     <polygon points="0,100 0,55 40,68 90,35 140,58 190,25 240,50 300,20 350,45 400,30 400,100" fill="#0e1826" opacity="0.5"/>
+     <polygon points="0,100 0,75 60,85 110,60 170,80 220,52 280,72 330,48 400,65 400,100" fill="#16243a" opacity="0.5"/>
+ </svg>
+</div>
 <div class="container">
 <div class="header">
  <img src="logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none'">
- <h1>Bergtouren Wetter Ampel</h1>
+ <h1>Bergtouren Wetter Ampel <span class="header-weather-cluster" aria-hidden="true"><svg viewBox="0 0 40 24"><path d="M10,18 a7,7 0 0 1 0,-14 a8,8 0 0 1 15,2 a6,6 0 0 1 -2,12 z" fill="var(--primary-dim)" opacity="0.5"/></svg><span class="drop d1"></span><span class="drop d2"></span><span class="drop d3"></span></span></h1>
  <p class="subtitle">Präzise Vorhersagen & Alpine Risiko-Engine</p>
 </div>
 
 <!-- GPX Import Section -->
 <div class="gpx-box">
- <label style="color:#065f46;margin-bottom:6px">🗺️ Tour aus GPX-Datei laden</label>
+ <label style="color:#7ce8bc;margin-bottom:6px">🗺️ Tour aus GPX-Datei laden</label>
  <input type="file" id="gpxFileInput" accept=".gpx" style="display:none" onchange="handleGPXUpload(event)">
  <button type="button" class="gpx-btn" onclick="document.getElementById('gpxFileInput').click()">📂 GPX-Datei auswählen</button>
- <div id="gpxStatus" class="small-note" style="margin-top:6px;color:#047857"></div>
+ <div id="gpxStatus" class="small-note" style="margin-top:6px;color:#7ce8bc"></div>
 </div>
 
 <div class="card-section">
@@ -637,7 +851,7 @@
  <div id="peakSelected" class="selected-peak" style="display:none"></div>
  <div id="peakSearchHint" class="small-note">Startort wählen oder Karte öffnen.</div>
  <select id="peakDropdown" onchange="selectPeakFromDropdown()" style="margin-top:8px;display:none"><option value="">-- Gipfel auswählen --</option></select>
- <div id="peakLoading" class="small-note" style="display:none;color:#059669;margin-top:6px;">⛰️ Suche Gipfel in der Umgebung …</div>
+ <div id="peakLoading" class="small-note" style="display:none;color:#7ce8bc;margin-top:6px;">⛰️ Suche Gipfel in der Umgebung …</div>
  <div class="row" style="margin-top:8px;">
      <button type="button" id="peakSearchBtn" class="action-btn" onclick="searchMountainsAroundStart()" style="display:none;"></button>
      <button type="button" id="peakMapBtn" class="action-btn" onclick="openPeakMapModal()" style="width:100%;padding:10px;background:#0284c7;">🗺️ Gipfel auf Karte auswählen</button>
@@ -661,7 +875,7 @@
  <div class="form-group" style="margin-bottom:12px">
      <label style="display:flex;justify-content:space-between;align-items:center">
          <span>⏱️ Geplante Startzeit:</span>
-         <button type="button" onclick="setNowTime()" style="background:#e2e8f0;color:var(--text);border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">🕒 Jetzt</button>
+         <button type="button" onclick="setNowTime()" style="background:rgba(255,255,255,0.08);color:var(--text);border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">🕒 Jetzt</button>
      </label>
      <input type="datetime-local" id="startTime" onchange="saveState()">
  </div>
@@ -683,7 +897,7 @@
      30 m genaue Position bringt bei 1 km Rasterweite keinen Erkenntnisgewinn. -->
 <button type="button" id="pushToggleBtn" class="btn btn-push" onclick="toggleTourPush()">Push Benachrichtigungen für die Tour aktivieren</button>
 
-<div id="pushStatusInfo" class="small-note" style="margin-top:8px;padding:10px;background:#f1f5f9;border-radius:10px;border:1px solid var(--border);display:none;"></div>
+<div id="pushStatusInfo" class="small-note" style="margin-top:8px;padding:10px;background:var(--card-bg);border-radius:10px;border:1px solid var(--border);display:none;"></div>
 
 <div id="results" class="results"></div>
 <div class="footer-copyright" style="text-align:center;font-size:11px;color:var(--text-light);margin-top:20px">© 2026 Christian Camus. Alle Rechte vorbehalten.</div>
@@ -769,8 +983,8 @@ if (isActive) {
  const start = startTime ? new Date(startTime) : null;
  const laeuft = start && Date.now() >= start.getTime();
  const phase = laeuft
-   ? '<span style="color:#047857;">▶️ Tour läuft – Warnungen für deine Routenabschnitte aktiv.</span>'
-   : '<span style="color:#64748b;">🗓️ Geplant. Du bekommst am Vorabend und 10 Min. vor dem Start eine kurze Einschätzung.</span>';
+   ? '<span style="color:#7ce8bc;">▶️ Tour läuft – Warnungen für deine Routenabschnitte aktiv.</span>'
+   : '<span style="color:var(--text-light);">🗓️ Geplant. Du bekommst am Vorabend und 10 Min. vor dem Start eine kurze Einschätzung.</span>';
  infoBox.innerHTML = `🔔 <strong>Push-Benachrichtigungen aktiv</strong> für: <em>${tourTitle}</em> (Start: ${startTime ? startTime.replace('T', ' ') : '–'})<br>${phase}<br><button type="button" class="action-btn" onclick="loadActiveTourFromCloud()" style="margin-top:8px;background:#0284c7;font-size:12px;padding:6px 10px;">aktive Tour laden</button>`;
 } else if (beendet) {
  btn.classList.remove('active');
@@ -2287,7 +2501,7 @@ if(!Number.isFinite(lat) || !Number.isFinite(lon) || !startStr){
  return;
 }
 
-document.getElementById('results').innerHTML = '<div class="loading" style="text-align:center;padding:15px;color:#64748b;">🌦️ Alpine Risiko-Engine berechnet Tal- & Gipfel-Werte …</div>';
+document.getElementById('results').innerHTML = '<div class="loading" style="text-align:center;padding:15px;color:var(--text-light);">🌦️ Alpine Risiko-Engine berechnet Tal- & Gipfel-Werte …</div>';
 
 const startDt = new Date(startStr);
 const endDt = new Date(startDt.getTime()+duration*3600000);
@@ -2681,13 +2895,13 @@ try{
      const imNebelGipfel = hasPeakAlt && cloud > 60 && peakCloudBaseMsl <= parsedPeakAlt + 60;
 
      const nebelTxt = (flag) => flag
-         ? '<br><span style="color:#b45309">🌫️ <strong>in Wolken</strong> – Sicht am Boden stark eingeschränkt</span>' : '';
+         ? '<br><span style="color:#fbbf24">🌫️ <strong>in Wolken</strong> – Sicht am Boden stark eingeschränkt</span>' : '';
 
      const peakBox = hasPeakAlt ? `<div><div class="weather-box-title">⛰️ Gipfel (${Math.round(parsedPeakAlt)}m)</div>🌡️ ${ptemp.toFixed(1)}°C<br>💨 Wind: ${Math.round(pwind)} km/h (Böen: ${Math.round(pgust)} km/h)<br>🧭 ${pDirTxt}<br>🌦️ ${conditionHint(peakWeather)}<br>🌧️ ${prain.toFixed(1)}mm<br>💧 Regenwahrscheinlichkeit: ${Math.round(pprob)}%<br>👁️ Sicht: ${pvisTxt}<br>☁️ Wolkenbasis: ca. ${peakCloudBaseMsl}m${nebelTxt(imNebelGipfel)}</div>` : '';
 
      // Zwischenpunkt nur zeigen, wenn er tatsächlich der kritischste ist.
      const routeBox = (routeWorst && routeWorst.score > slotMaxScore0 + 5)
-         ? `<div style="font-size:11px;margin-top:6px;padding:6px;background:#fff7ed;border-radius:6px;border-left:3px solid #f59e0b">
+         ? `<div style="font-size:11px;margin-top:6px;padding:6px;background:rgba(245,158,11,0.12);border-radius:6px;border-left:3px solid var(--warning)">
               ⚠️ <strong>Kritischster Punkt: ${routeWorst.label}${routeWorst.alt ? ' ('+routeWorst.alt+'m)' : ''}</strong> –
               ${routeWorst.hint}, Böen ${Math.round(routeWorst.w.gust)} km/h, ${routeWorst.w.rain.toFixed(1)}mm.
               Schlechter als Tal und Gipfel.
@@ -2695,7 +2909,7 @@ try{
 
      const cls = slotMaxScore>=60?'status-red':slotMaxScore>=30?'status-orange':'status-green';
 
-     slots+=`<div class="slot ${cls}"><div style="display:flex;justify-content:space-between"><strong>⏱️ ${t.replace('T',' ')} Uhr</strong><span>Risiko: <strong>${slotMaxScore>=60?'Hoch':(slotMaxScore>=30?'Mäßig':'Niedrig')}</strong></span></div><div class="weather-split${hasPeakAlt?'':' single-col'}"><div><div class="weather-box-title">📍 Tal (${Math.round(baseElev)}m)</div>🌡️ ${temp.toFixed(1)}°C<br>💨 Wind: ${Math.round(wind)} km/h (Böen: ${Math.round(gust)} km/h)<br>🧭 ${dirTxt}<br>🌦️ ${hint}<br>🌧️ ${rain.toFixed(1)}mm<br>💧 Regenwahrscheinlichkeit: ${Math.round(prob)}%<br>👁️ Sicht: ${visTxt}<br>☁️ Wolkenbasis: ca. ${valleyCloudBaseMsl}m${nebelTxt(imNebelTal)}</div>${peakBox}</div>${routeBox}<div style="font-size:11px">Bewölkung: ${Math.round(cloud)}%${snowHeight !== null ? ` · Schneefallgrenze: ${Math.round(snowHeight)}m` : ''}</div></div>`;
+     slots+=`<div class="slot ${cls}" style="animation-delay:${Math.min(i,12)*50}ms"><div style="display:flex;justify-content:space-between"><strong>⏱️ ${t.replace('T',' ')} Uhr</strong><span>Risiko: <strong>${slotMaxScore>=60?'Hoch':(slotMaxScore>=30?'Mäßig':'Niedrig')}</strong></span></div><div class="weather-split${hasPeakAlt?'':' single-col'}"><div><div class="weather-box-title">📍 Tal (${Math.round(baseElev)}m)</div>🌡️ ${temp.toFixed(1)}°C<br>💨 Wind: ${Math.round(wind)} km/h (Böen: ${Math.round(gust)} km/h)<br>🧭 ${dirTxt}<br>🌦️ ${hint}<br>🌧️ ${rain.toFixed(1)}mm<br>💧 Regenwahrscheinlichkeit: ${Math.round(prob)}%<br>👁️ Sicht: ${visTxt}<br>☁️ Wolkenbasis: ca. ${valleyCloudBaseMsl}m${nebelTxt(imNebelTal)}</div>${peakBox}</div>${routeBox}<div style="font-size:11px">Bewölkung: ${Math.round(cloud)}%${snowHeight !== null ? ` · Schneefallgrenze: ${Math.round(snowHeight)}m` : ''}</div></div>`;
  }
 
  // Modellstreuung fliesst jetzt in die Bewertung ein. Bisher stand die Zahl nur
@@ -2769,7 +2983,7 @@ try{
      if (!fenster) return txt;
      // Zeit auf eine eigene Zeile: Zwischen Bezeichnung und Beschreibung geklemmt
      // las sie sich wie ein Satzteil ("nasser Fels: ab ca. 06:00 Uhr Rutschig in ...").
-     return `${txt}<br><span style="color:#64748b;font-size:12px;">⏱ ${fenster}</span>`;
+     return `${txt}<br><span style="color:var(--text-light);font-size:12px;">⏱ ${fenster}</span>`;
  });
 
  let summaryText = overall==='red'?'Erhöhte alpine Gefahren (Gewitter, Nässe, Sturm).':(overall==='orange'?'Anspruchsvolle Bedingungen mit Wetterumschwüngen im Tourfenster.':'Stabile alpine Bedingungen.');
@@ -2812,15 +3026,15 @@ try{
  html+=`<div class="tour-specs-header">📅 <strong>Datum:</strong> ${startDt.toLocaleDateString('de-DE')} | ⏱️ <strong>Start:</strong> ${startDt.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})} (${duration} Std.)<br>🥾 <strong>Tour:</strong> ${tourName}</div>`;
 
  if (isHighTourOrGlacier && startHour >= 7) {
-     html+=`<div class="warning-box" style="background:#eff6ff;border-color:#3b82f6;color:#1e3a8a;">⏰ <strong>Frühstart-Empfehlung:</strong> Bei Hochtouren und Gletschertouren wird ein Start zwischen <strong>03:00 und 06:00 Uhr</strong> dringend empfohlen!</div>`;
+     html+=`<div class="warning-box" style="background:rgba(56,189,248,0.12);border-color:#38bdf8;color:#bae6fd;">⏰ <strong>Frühstart-Empfehlung:</strong> Bei Hochtouren und Gletschertouren wird ein Start zwischen <strong>03:00 und 06:00 Uhr</strong> dringend empfohlen!</div>`;
  }
 
  if(isAfterSunset && sunsetDt) {
      const sunsetTimeStr = sunsetDt.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
-     html+=`<div class="warning-box" style="background:#fefce8;border-color:#fef08a;color:#854d0e;">🔦 <strong>Dunkelheitswarnung:</strong> Die Tour endet nach Sonnenuntergang (${sunsetTimeStr} Uhr). <strong>Stirnlampe mitnehmen!</strong></div>`;
+     html+=`<div class="warning-box" style="background:rgba(250,204,21,0.12);border-color:#facc15;color:#fde68a;">🔦 <strong>Dunkelheitswarnung:</strong> Die Tour endet nach Sonnenuntergang (${sunsetTimeStr} Uhr). <strong>Stirnlampe mitnehmen!</strong></div>`;
  }
 
- html+=`<div class="risk-hero risk-${overall}"><div class="risk-icon">${overall==='red'?'🔴':overall==='orange'?'🟠':'🟢'}</div><div class="risk-title">GESAMTRISIKO: ${maxLevel.toUpperCase()}</div><div class="risk-summary"><strong>Alpin-Fazit:</strong> ${summaryText}</div></div>`;
+ html+=`<div class="risk-hero risk-${overall}"><div class="ampel-3d" id="ampel3d"><div class="ampel-case"><div class="ampel-light red" data-color="red"></div><div class="ampel-light amber" data-color="amber"></div><div class="ampel-light green" data-color="green"></div></div></div><div class="risk-title">GESAMTRISIKO: ${maxLevel.toUpperCase()}</div><div class="risk-summary"><strong>Alpin-Fazit:</strong> ${summaryText}</div></div>`;
 
  html+=`<a href="${mapAppUrl}" target="_blank" class="map-link-btn">🗺️ 3D-Wetter Simulation ↗</a>`;
 
@@ -2838,13 +3052,13 @@ try{
  const confKopf = conf.pct === null
      ? 'Prognose-Verlässlichkeit: nicht bewertbar'
      : `Prognose-Verlässlichkeit: ${conf.pct}% Modellübereinstimmung`;
- html+=`<div class="trend-box ${confClass}"><strong>${confKopf}</strong><br><span style="font-size:11px">${conf.text}</span>${conf.spread ? `<br><span style="font-size:11px;color:#475569;">${conf.spread}</span>` : ''}${unsicherheitHinweis ? `<br><span style="font-size:11px;color:#b45309;">${unsicherheitHinweis}</span>` : ''}</div>`;
+ html+=`<div class="trend-box ${confClass}"><strong>${confKopf}</strong><br><span style="font-size:11px">${conf.text}</span>${conf.spread ? `<br><span style="font-size:11px;color:var(--text-light);">${conf.spread}</span>` : ''}${unsicherheitHinweis ? `<br><span style="font-size:11px;color:#fbbf24;">${unsicherheitHinweis}</span>` : ''}</div>`;
 
  if(warnings.length) {
      html+=`<div class="warning-box">${warnings.join('<br><br>')}</div>`;
  }
- 
- let summaryBox = `<div style="background:#f8fafc; border:1px solid #94a3b8; border-radius:12px; padding:12px; margin-bottom:15px; font-size:13px; line-height:1.5;">`;
+
+ let summaryBox = `<div style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:12px; padding:12px; margin-bottom:15px; font-size:13px; line-height:1.5;">`;
  summaryBox += `<strong style="color:var(--primary); text-transform:uppercase; font-size:11px;">⚠️ Tour-Fokus (Heikelste Faktoren)</strong><br>`;
 
  if (maxThunderRisk) {
@@ -2869,6 +3083,25 @@ try{
  html+=`<button type="button" class="share-btn" onclick="triggerShare()">🔗 Tour-Wetter teilen</button><button type="button" class="export-btn" onclick="window.print()">📄 Als PDF speichern</button>`;
 
  document.getElementById('results').innerHTML=html;
+
+ requestAnimationFrame(() => {
+     const seq = ['red','amber','green'];
+     const target = overall === 'red' ? 'red' : overall === 'orange' ? 'amber' : 'green';
+     const targetIdx = seq.indexOf(target);
+     seq.forEach((c,i) => {
+         const el = document.querySelector(`.ampel-light.${c}`);
+         if(!el) return;
+         setTimeout(() => {
+             document.querySelectorAll('.ampel-light').forEach(l=>l.classList.remove('on'));
+             el.classList.add('on');
+         }, i * 260);
+     });
+     setTimeout(() => {
+         document.querySelectorAll('.ampel-light').forEach(l=>l.classList.remove('on'));
+         document.querySelector(`.ampel-light.${target}`)?.classList.add('on');
+     }, seq.length * 260 + 150);
+ });
+
  document.getElementById('pushToggleBtn').style.display = 'block';
  document.getElementById('results').scrollIntoView({behavior:'smooth'});
  saveState();
