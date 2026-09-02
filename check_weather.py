@@ -68,9 +68,10 @@ def http_json(url, timeout=10, retries=2):
 # Deshalb wird jetzt data-only gesendet; die Darstellung macht ausschließlich der
 # Service Worker. `collapse_key`/`Topic` sorgt zusätzlich dafür, dass noch nicht
 # zugestellte ältere Warnungen durch die neueste ersetzt statt nachgeliefert werden.
-def send_high_priority_push(title, body, token, tag='tour-alert', collapse=True):
+def send_high_priority_push(title, body, token, tag='tour-alert', collapse=True,
+                             click_url="./index.html#activeTour"):
     msg = messaging.Message(
-        data={'title': title, 'body': body, 'tag': tag},
+        data={'title': title, 'body': body, 'tag': tag, 'click_url': click_url},
         token=token,
         android=messaging.AndroidConfig(
             priority='high',
@@ -79,7 +80,7 @@ def send_high_priority_push(title, body, token, tag='tour-alert', collapse=True)
         ),
         webpush=messaging.WebpushConfig(
             headers={'Urgency': 'high', 'TTL': '7200'},
-            data={'title': title, 'body': body, 'tag': tag}
+            data={'title': title, 'body': body, 'tag': tag, 'click_url': click_url}
         )
     )
     return messaging.send(msg)

@@ -895,9 +895,11 @@
 <!-- Der Knopf "Live-Standort aktualisieren" ist entfallen. Die Warnungen
      beziehen sich auf Routenabschnitte von mehreren Kilometern Laenge; eine auf
      30 m genaue Position bringt bei 1 km Rasterweite keinen Erkenntnisgewinn. -->
+<div id="activeTour">
 <button type="button" id="pushToggleBtn" class="btn btn-push" onclick="toggleTourPush()">Push Benachrichtigungen für die Tour aktivieren</button>
 
 <div id="pushStatusInfo" class="small-note" style="margin-top:8px;padding:10px;background:var(--card-bg);border-radius:10px;border:1px solid var(--border);display:none;"></div>
+</div>
 
 <div id="results" class="results"></div>
 <div class="footer-copyright" style="text-align:center;font-size:11px;color:var(--text-light);margin-top:20px">© 2026 Christian Camus. Alle Rechte vorbehalten.</div>
@@ -946,6 +948,17 @@ navigator.serviceWorker.register('./firebase-messaging-sw.js')
  });
 }).catch((err) => {
  console.error('Service Worker Registrierung fehlgeschlagen:', err);
+});
+
+// Reagiert, wenn der Klick-Handler im Service Worker eine bereits offene App-Instanz
+// fokussiert statt neu zu öffnen - hier läuft dann kein Seiten-Neuladen, das die
+// aktive Tour laden könnte.
+navigator.serviceWorker.addEventListener('message', (event) => {
+ if (event.data && event.data.type === 'PUSH_CLICK') {
+     const target = document.getElementById('pushStatusInfo');
+     if (target) target.scrollIntoView({ behavior: 'smooth' });
+     loadActiveTourFromCloud();
+ }
 });
 }
 
@@ -1703,6 +1716,36 @@ saveState();
 searchMountainsAroundStart();
 }
 
+// FIX: overpass-api.de lehnt Anfragen ohne 'Accept'-Header teils mit 406 ab - auch im
+// WLAN, unabhängig von der eigentlichen Serverlast. Ein Mirror-Fallback mit Timeout
+// fängt zusätzlich einen hängenden oder überlasteten Server ab.
+async function fetchOverpass(query) {
+const endpoints = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+let lastErr;
+for (const endpoint of endpoints) {
+ const controller = new AbortController();
+ const timer = setTimeout(() => controller.abort(), 12000);
+ try {
+     const res = await fetch(endpoint, {
+         method: 'POST',
+         body: "data=" + encodeURIComponent(query),
+         headers: {
+             'Content-type': 'application/x-www-form-urlencoded',
+             'Accept': 'application/json'
+         },
+         signal: controller.signal
+     });
+     if (!res.ok) throw new Error(`Overpass HTTP ${res.status} (${endpoint})`);
+     return await res.json();
+ } catch (e) {
+     lastErr = e;
+ } finally {
+     clearTimeout(timer);
+ }
+}
+throw lastErr;
+}
+
 async function searchMountainsAroundStart() {
 const lat = parseFloat(document.getElementById('lat').value);
 const lon = parseFloat(document.getElementById('lon').value);
@@ -1735,13 +1778,8 @@ const radius = 15000;
             out body qt;`;
 
 try {
- const res = await fetch('https://overpass-api.de/api/interpreter', {
-     method: 'POST',
-     body: "data=" + encodeURIComponent(query),
-     headers: { 'Content-type': 'application/x-www-form-urlencoded' }
- });
- const data = await res.json();
- 
+ const data = await fetchOverpass(query);
+
  let rawPeaks = data.elements
      .filter(el => el.tags && el.tags.name)
      .map(el => {
@@ -3125,15 +3163,24 @@ else window.open('https://api.whatsapp.com/send?text='+encodeURIComponent(text),
 
 window.addEventListener('DOMContentLoaded',()=>{
 localStorage.removeItem('bt_favorites_v5');
-setNowTime(); 
+setNowTime();
 updatePushStatusUI();
-document.getElementById('gpxStatus').innerText=''; 
+document.getElementById('gpxStatus').innerText='';
 clearPeak();
 
 ['startTime','duration'].forEach(id=>{
  const el = document.getElementById(id);
  if(el) el.addEventListener('input', scheduleLiveTourWeather);
 });
+
+// Falls die App über den Push-Klick komplett neu gestartet wurde (statt nur
+// fokussiert), fehlt hier die PUSH_CLICK-Nachricht vom Service Worker - der
+// Hash aus dem Klick-Link ist dann der einzige Hinweis darauf.
+if (location.hash === '#activeTour') {
+ const target = document.getElementById('pushStatusInfo');
+ if (target) target.scrollIntoView({ behavior: 'smooth' });
+ loadActiveTourFromCloud();
+}
 });
 </script>
 </body>

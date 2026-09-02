@@ -32,18 +32,21 @@ messaging.onBackgroundMessage((payload) => {
 self.addEventListener('notificationclick', (event) => {
 event.notification.close(); // Schließt die Benachrichtigung in der Statusleiste
 
+const clickUrl = event.notification.data?.click_url || './index.html#activeTour';
+
 event.waitUntil(
   clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
     // Prüfen, ob die App bereits in einem Browser-Tab geöffnet ist
     for (let i = 0; i < clientList.length; i++) {
       let client = clientList[i];
       if (client.url.includes('wetter-check') && 'focus' in client) {
+        client.postMessage({ type: 'PUSH_CLICK', url: clickUrl });
         return client.focus();
       }
     }
     // Falls die App komplett geschlossen ist -> neu im Tab öffnen
     if (clients.openWindow) {
-      return clients.openWindow('/');
+      return clients.openWindow(clickUrl);
     }
   })
 );

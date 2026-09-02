@@ -2400,12 +2400,17 @@ function fetchPois(endpoint, query, timeoutMs = 14000) {
  // (statt sauber mit einem Fehlerstatus zu antworten), blieb das Promise vorher unbegrenzt
  // hängen und der nächste Mirror wurde nie probiert, ohne dass im Debug-Panel je ein zweiter
  // Fehler auftauchte. Ein AbortController erzwingt jetzt einen harten Abbruch nach 14s.
+ // FIX: Ohne 'Accept'-Header lehnen manche Overpass-Mirror die Anfrage mit 406 ab -
+ // auch bei intaktem Netz.
  const controller = new AbortController();
  const timer = setTimeout(() => controller.abort(), timeoutMs);
  return fetch(endpoint, {
      method: 'POST',
      body: "data=" + encodeURIComponent(query),
-     headers: { 'Content-type': 'application/x-www-form-urlencoded' },
+     headers: {
+         'Content-type': 'application/x-www-form-urlencoded',
+         'Accept': 'application/json'
+     },
      signal: controller.signal
  })
      .then(res => {
