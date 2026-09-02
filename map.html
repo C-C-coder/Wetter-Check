@@ -1217,9 +1217,9 @@ function playThunder(delaySeconds = 0) {
      const crackSrc = createLoopingNoiseSource(audioCtx);
      const crackFilter = audioCtx.createBiquadFilter();
      crackFilter.type = 'bandpass';
-     crackFilter.frequency.setValueAtTime(900, startTime);
-     crackFilter.frequency.exponentialRampToValueAtTime(250, startTime + 0.6);
-     crackFilter.Q.value = 0.8;
+     crackFilter.frequency.setValueAtTime(450, startTime);
+     crackFilter.frequency.exponentialRampToValueAtTime(120, startTime + 0.6);
+     crackFilter.Q.value = 1.2;
      const crackGain = audioCtx.createGain();
      crackGain.gain.setValueAtTime(0, startTime);
      crackGain.gain.linearRampToValueAtTime(0.5, startTime + 0.15); // sanfterer Attack
@@ -1237,8 +1237,8 @@ function playThunder(delaySeconds = 0) {
          const src = createLoopingNoiseSource(audioCtx);
          const filter = audioCtx.createBiquadFilter();
          filter.type = 'lowpass';
-         filter.frequency.setValueAtTime(220 + Math.random() * 150, waveStart);
-         filter.frequency.exponentialRampToValueAtTime(50, waveStart + waveDur);
+         filter.frequency.setValueAtTime(110 + Math.random() * 80, waveStart);
+         filter.frequency.exponentialRampToValueAtTime(35, waveStart + waveDur);
          const gain = audioCtx.createGain();
          const peakGain = 0.25 + Math.random() * 0.25;
          gain.gain.setValueAtTime(0, waveStart);
@@ -1252,8 +1252,8 @@ function playThunder(delaySeconds = 0) {
      // Sub-Bass "Wumms": sanfterer Attack statt hartem Peak, etwas länger ausklingend.
      const sub = audioCtx.createOscillator();
      sub.type = 'sine';
-     sub.frequency.setValueAtTime(55, startTime);
-     sub.frequency.exponentialRampToValueAtTime(30, startTime + 0.9);
+     sub.frequency.setValueAtTime(45, startTime);
+     sub.frequency.exponentialRampToValueAtTime(22, startTime + 0.9);
      const subGain = audioCtx.createGain();
      subGain.gain.setValueAtTime(0, startTime);
      subGain.gain.linearRampToValueAtTime(0.6, startTime + 0.12);
