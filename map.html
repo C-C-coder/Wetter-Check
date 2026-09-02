@@ -1211,33 +1211,56 @@ function playThunder(delaySeconds = 0) {
  if (!audioCtx) return;
  try {
      const startTime = audioCtx.currentTime + delaySeconds;
-     const duration = 1.8 + Math.random() * 1.2;
+     const totalDuration = 3.5 + Math.random() * 2.5; // echter Donner rollt mehrere Sekunden
 
-     // Tiefes Rumpeln: gefiltertes Rauschen mit langsam abfallender Lowpass-Grenzfrequenz.
-     const src = createLoopingNoiseSource(audioCtx);
-     const filter = audioCtx.createBiquadFilter();
-     filter.type = 'lowpass';
-     filter.frequency.setValueAtTime(900, startTime);
-     filter.frequency.exponentialRampToValueAtTime(60, startTime + duration);
-     const gain = audioCtx.createGain();
-     gain.gain.setValueAtTime(0, startTime);
-     gain.gain.linearRampToValueAtTime(0.9, startTime + 0.05);
-     gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-     src.connect(filter).connect(gain).connect(masterGainNode);
-     src.start(startTime);
-     src.stop(startTime + duration + 0.1);
+     // Initialer "Crack": kurzer Knall, aber mit hörbarer Anstiegszeit statt Schuss-Transiente.
+     const crackSrc = createLoopingNoiseSource(audioCtx);
+     const crackFilter = audioCtx.createBiquadFilter();
+     crackFilter.type = 'bandpass';
+     crackFilter.frequency.setValueAtTime(900, startTime);
+     crackFilter.frequency.exponentialRampToValueAtTime(250, startTime + 0.6);
+     crackFilter.Q.value = 0.8;
+     const crackGain = audioCtx.createGain();
+     crackGain.gain.setValueAtTime(0, startTime);
+     crackGain.gain.linearRampToValueAtTime(0.5, startTime + 0.15); // sanfterer Attack
+     crackGain.gain.exponentialRampToValueAtTime(0.02, startTime + 0.9);
+     crackSrc.connect(crackFilter).connect(crackGain).connect(masterGainNode);
+     crackSrc.start(startTime);
+     crackSrc.stop(startTime + 1.0);
 
-     // Zusätzlicher tiefer Sub-Bass-Knall für den initialen "Schlag" des Donners.
+     // Rollendes Grundrumpeln: mehrere zeitversetzte, tieffrequente Rausch-"Wellen" simulieren
+     // die Echos entlang des Blitzkanals -> rollender Donner statt einzelnem Knall.
+     const rumbleWaves = 4 + Math.floor(Math.random() * 3);
+     for (let w = 0; w < rumbleWaves; w++) {
+         const waveStart = startTime + 0.3 + (w / rumbleWaves) * totalDuration * (0.5 + Math.random() * 0.4);
+         const waveDur = 0.8 + Math.random() * 1.2;
+         const src = createLoopingNoiseSource(audioCtx);
+         const filter = audioCtx.createBiquadFilter();
+         filter.type = 'lowpass';
+         filter.frequency.setValueAtTime(220 + Math.random() * 150, waveStart);
+         filter.frequency.exponentialRampToValueAtTime(50, waveStart + waveDur);
+         const gain = audioCtx.createGain();
+         const peakGain = 0.25 + Math.random() * 0.25;
+         gain.gain.setValueAtTime(0, waveStart);
+         gain.gain.linearRampToValueAtTime(peakGain, waveStart + 0.25 + Math.random() * 0.3); // "Rumpeln" statt "Knall"
+         gain.gain.exponentialRampToValueAtTime(0.01, waveStart + waveDur);
+         src.connect(filter).connect(gain).connect(masterGainNode);
+         src.start(waveStart);
+         src.stop(waveStart + waveDur + 0.1);
+     }
+
+     // Sub-Bass "Wumms": sanfterer Attack statt hartem Peak, etwas länger ausklingend.
      const sub = audioCtx.createOscillator();
      sub.type = 'sine';
-     sub.frequency.setValueAtTime(70, startTime);
-     sub.frequency.exponentialRampToValueAtTime(35, startTime + 0.4);
+     sub.frequency.setValueAtTime(55, startTime);
+     sub.frequency.exponentialRampToValueAtTime(30, startTime + 0.9);
      const subGain = audioCtx.createGain();
-     subGain.gain.setValueAtTime(0.8, startTime);
-     subGain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.5);
+     subGain.gain.setValueAtTime(0, startTime);
+     subGain.gain.linearRampToValueAtTime(0.6, startTime + 0.12);
+     subGain.gain.exponentialRampToValueAtTime(0.01, startTime + 1.1);
      sub.connect(subGain).connect(masterGainNode);
      sub.start(startTime);
-     sub.stop(startTime + 0.6);
+     sub.stop(startTime + 1.2);
  } catch (e) {
      logDebugError('playThunder', e);
  }
