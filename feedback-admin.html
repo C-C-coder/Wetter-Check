@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedback – Bergtouren Wetter Ampel</title>
+<link rel="manifest" href="feedback-admin-manifest.json">
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="icon" href="logo.png" type="image/png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Feedback">
+<meta name="theme-color" content="#0a1220">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+ --bg: #0a1220;
+ --card-bg: rgba(255,255,255,0.05);
+ --card-border: rgba(255,255,255,0.09);
+ --border: rgba(255,255,255,0.12);
+ --text: #e6ecf4;
+ --text-light: #7a8ba3;
+ --accent: #5de8b0;
+ --accent-glow: rgba(93,232,176,0.45);
+ --danger: #ef4444;
+}
+* { box-sizing: border-box; }
+body {
+ margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+ font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+ max-width: 720px; margin-left: auto; margin-right: auto;
+}
+h1 { font-size: 1.3rem; margin: 8px 0 4px 0; }
+.sub { color: var(--text-light); font-size: 0.85rem; margin-bottom: 20px; }
+
+/* --- Login --- */
+#loginBox {
+ background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px;
+ padding: 20px; margin-top: 30px;
+}
+#loginBox input {
+ width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+ background: rgba(255,255,255,0.06); color: var(--text); font-size: 0.9rem;
+ box-sizing: border-box; margin-top: 10px;
+}
+#loginBox button {
+ width: 100%; margin-top: 14px; padding: 11px; border-radius: 10px; border: none;
+ background: var(--accent); color: #04140d; font-weight: 700; font-size: 0.95rem; cursor: pointer;
+}
+#loginError { color: var(--danger); font-size: 0.85rem; margin-top: 10px; min-height: 1em; }
+
+/* --- Kein Zugriff --- */
+#noAccessBox { display: none; text-align: center; margin-top: 60px; color: var(--text-light); }
+
+/* --- Feedback-Liste --- */
+#appBox { display: none; }
+#statsRow { display: flex; gap: 10px; margin-bottom: 22px; }
+.stat-box {
+ flex: 1; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px;
+ padding: 14px 10px; text-align: center;
+}
+.stat-num { font-size: 1.6rem; font-weight: 700; color: var(--accent); }
+.stat-label { font-size: 0.72rem; color: var(--text-light); margin-top: 4px; }
+
+#filterRow { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.filter-btn {
+ padding: 7px 14px; border-radius: 20px; border: 1px solid var(--border);
+ background: var(--card-bg); color: var(--text-light); font-size: 0.82rem; cursor: pointer;
+}
+.filter-btn.active { background: var(--accent); color: #04140d; border-color: var(--accent); font-weight: 600; }
+
+.fb-card {
+ background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px;
+ padding: 14px 16px; margin-bottom: 12px;
+}
+.fb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
+.fb-cat {
+ display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;
+}
+.fb-cat.Fehler { background: rgba(239,68,68,0.18); color: #fca5a5; }
+.fb-cat.Idee { background: rgba(93,232,176,0.18); color: var(--accent); }
+.fb-cat.Lob { background: rgba(250,204,21,0.18); color: #fde68a; }
+.fb-cat.Sonstiges { background: rgba(148,163,184,0.18); color: #cbd5e1; }
+.fb-time { color: var(--text-light); font-size: 0.78rem; white-space: nowrap; }
+.fb-text { font-size: 0.92rem; line-height: 1.5; white-space: pre-line; }
+.fb-email { color: var(--text-light); font-size: 0.78rem; margin-top: 8px; }
+#emptyState { text-align: center; color: var(--text-light); padding: 40px 0; display: none; }
+#loadingState { text-align: center; color: var(--text-light); padding: 40px 0; }
+</style>
+</head>
+<body>
+
+<h1>💬 Feedback</h1>
+<div class="sub">Bergtouren Wetter Ampel – nur für dich sichtbar</div>
+
+<div id="statsRow" style="display:none">
+ <div class="stat-box"><div class="stat-num" id="statUsers">–</div><div class="stat-label">Registrierte Konten</div></div>
+ <div class="stat-box"><div class="stat-num" id="statQueries">–</div><div class="stat-label">Tour-Abfragen gesamt</div></div>
+ <div class="stat-box"><div class="stat-num" id="statToday">–</div><div class="stat-label">Heute</div></div>
+</div>
+
+<div id="loginBox">
+ <div style="color:var(--text-light);font-size:0.85rem">Mit deinem App-Konto anmelden</div>
+ <input type="email" id="loginEmail" placeholder="E-Mail">
+ <input type="password" id="loginPassword" placeholder="Passwort">
+ <button onclick="doLogin()">Anmelden</button>
+ <div id="loginError"></div>
+</div>
+
+<div id="noAccessBox">
+ <p>🔒 Kein Zugriff mit diesem Konto.</p>
+</div>
+
+<div id="appBox">
+ <div id="filterRow">
+     <button class="filter-btn active" data-cat="Alle" onclick="setFilter('Alle')">Alle</button>
+     <button class="filter-btn" data-cat="Fehler" onclick="setFilter('Fehler')">🐞 Fehler</button>
+     <button class="filter-btn" data-cat="Idee" onclick="setFilter('Idee')">💡 Idee</button>
+     <button class="filter-btn" data-cat="Lob" onclick="setFilter('Lob')">👍 Lob</button>
+     <button class="filter-btn" data-cat="Sonstiges" onclick="setFilter('Sonstiges')">💬 Sonstiges</button>
+ </div>
+ <div id="loadingState">Lädt…</div>
+ <div id="emptyState">Noch kein Feedback vorhanden.</div>
+ <div id="feedbackList"></div>
+</div>
+
+<script>
+// <-- HIER deine eigene UID eintragen (Firebase Console -> Authentication -> Users
+// -> Spalte "User UID"). Das ist nur die Anzeige-Sperre auf DIESER Seite - die
+// eigentliche Absicherung passiert über die Firestore-Regeln (dort dieselbe UID
+// eintragen, sonst bleibt das Lesen für alle blockiert, auch für dich).
+const ADMIN_UID = 'eqDYNqYY44RSEr62dwJkinZAFoV2';
+
+const firebaseConfig = {
+apiKey: "AIzaSyADlL7BKaVPgdCH6xSqWEjVqf54q33E9WE",
+authDomain: "wetter-check.firebaseapp.com",
+projectId: "wetter-check",
+storageBucket: "wetter-check.firebasestorage.app",
+messagingSenderId: "184488061652",
+appId: "1:184488061652:web:dda3d879ff8cfd36d6e941"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let allFeedback = [];
+let currentFilter = 'Alle';
+
+async function doLogin() {
+const email = document.getElementById('loginEmail').value.trim();
+const password = document.getElementById('loginPassword').value;
+const errEl = document.getElementById('loginError');
+errEl.innerText = '';
+if (!email || !password) { errEl.innerText = 'Bitte E-Mail und Passwort eingeben.'; return; }
+try {
+ await auth.signInWithEmailAndPassword(email, password);
+} catch (e) {
+ errEl.innerText = 'Anmeldung fehlgeschlagen: ' + (e.message || e.code || 'Unbekannter Fehler');
+}
+}
+
+auth.onAuthStateChanged(async (user) => {
+document.getElementById('loginBox').style.display = 'none';
+document.getElementById('noAccessBox').style.display = 'none';
+document.getElementById('appBox').style.display = 'none';
+
+if (!user) {
+ document.getElementById('loginBox').style.display = 'block';
+ return;
+}
+if (user.uid !== ADMIN_UID) {
+ document.getElementById('noAccessBox').style.display = 'block';
+ return;
+}
+document.getElementById('appBox').style.display = 'block';
+document.getElementById('statsRow').style.display = 'flex';
+await loadFeedback();
+await loadStats();
+});
+
+async function loadStats() {
+try {
+ const usersDoc = await db.collection('stats').doc('users').get();
+ document.getElementById('statUsers').innerText = usersDoc.exists ? (usersDoc.data().total || 0) : 0;
+} catch (e) { document.getElementById('statUsers').innerText = '–'; }
+try {
+ const queriesDoc = await db.collection('stats').doc('queries').get();
+ document.getElementById('statQueries').innerText = queriesDoc.exists ? (queriesDoc.data().total || 0) : 0;
+} catch (e) { document.getElementById('statQueries').innerText = '–'; }
+try {
+ const today = new Date().toISOString().slice(0, 10);
+ const todayDoc = await db.collection('dailyStats').doc(today).get();
+ document.getElementById('statToday').innerText = todayDoc.exists ? (todayDoc.data().count || 0) : 0;
+} catch (e) { document.getElementById('statToday').innerText = '–'; }
+}
+
+async function loadFeedback() {
+const loadingEl = document.getElementById('loadingState');
+loadingEl.style.display = 'block';
+try {
+ const snap = await db.collection('feedback').orderBy('createdAt', 'desc').get();
+ allFeedback = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+ renderFeedback();
+} catch (e) {
+ loadingEl.innerText = 'Fehler beim Laden: ' + (e.message || e.code || 'Unbekannt');
+ return;
+}
+loadingEl.style.display = 'none';
+}
+
+function setFilter(cat) {
+currentFilter = cat;
+document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+renderFeedback();
+}
+
+function renderFeedback() {
+const list = document.getElementById('feedbackList');
+const empty = document.getElementById('emptyState');
+const filtered = currentFilter === 'Alle' ? allFeedback : allFeedback.filter(f => f.category === currentFilter);
+
+if (!filtered.length) {
+ list.innerHTML = '';
+ empty.style.display = 'block';
+ return;
+}
+empty.style.display = 'none';
+
+list.innerHTML = filtered.map(f => {
+ const zeit = f.createdAt && f.createdAt.toDate
+     ? f.createdAt.toDate().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+     : '–';
+ const cat = f.category || 'Sonstiges';
+ const emailLine = f.email ? `<div class="fb-email">✉️ ${escapeHtml(f.email)}</div>` : '';
+ return `<div class="fb-card">
+     <div class="fb-head">
+         <span class="fb-cat ${escapeHtml(cat)}">${escapeHtml(cat)}</span>
+         <span class="fb-time">${zeit}</span>
+     </div>
+     <div class="fb-text">${escapeHtml(f.text || '')}</div>
+     ${emailLine}
+ </div>`;
+}).join('');
+}
+
+function escapeHtml(str) {
+const div = document.createElement('div');
+div.innerText = str;
+return div.innerHTML;
+}
+</script>
+</body>
+</html>
