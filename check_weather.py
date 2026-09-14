@@ -2027,6 +2027,13 @@ def cleanup_old_anonymous_users():
     in der Nutzerliste an. Registrierte Konten (auch ehemals-anonyme, die per
     linkWithCredential upgegradet wurden) sind davon nie betroffen.
 
+    Zaehlt im selben Durchlauf zusaetzlich die tatsaechliche Anzahl registrierter
+    (nicht-anonymer) Konten und schreibt sie nach stats/users. FIX: Der bisherige
+    Zaehler in index.html erhoehte sich nur bei einer NEUEN Registrierung ueber den
+    "Registrieren"-Button, ab dem Moment, wo dieser Code live ging - Konten, die
+    schon vorher existierten, wurden nie mitgezaehlt. Diese echte Zaehlung hier ist
+    unabhaengig davon immer korrekt, da sie direkt bei Firebase Auth nachfragt.
+
     Laeuft NICHT bei jedem 15-Minuten-Durchlauf, sondern nur einmal pro Tag - der
     Zeitpunkt des letzten Laufs wird dafuer in einem eigenen Firestore-Dokument
     gemerkt (system/anon_cleanup), unabhaengig von den Tour-Dokumenten.
@@ -2048,26 +2055,33 @@ def cleanup_old_anonymous_users():
     cutoff_ms = (now_utc - timedelta(days=CLEANUP_AGE_DAYS)).timestamp() * 1000
     deleted = 0
     checked = 0
+    registered_count = 0
     try:
         page = auth.list_users()
         while page:
             for user in page.users:
                 checked += 1
                 is_anonymous = len(user.provider_data) == 0  # kein Provider = rein anonym
-                created_ms = user.user_metadata.creation_timestamp
-                if is_anonymous and created_ms and created_ms < cutoff_ms:
-                    try:
-                        auth.delete_user(user.uid)
-                        deleted += 1
-                    except Exception as del_err:
-                        print(f"Konnte anonymes Konto {user.uid} nicht loeschen: {del_err}")
+                if is_anonymous:
+                    created_ms = user.user_metadata.creation_timestamp
+                    if created_ms and created_ms < cutoff_ms:
+                        try:
+                            auth.delete_user(user.uid)
+                            deleted += 1
+                        except Exception as del_err:
+                            print(f"Konnte anonymes Konto {user.uid} nicht loeschen: {del_err}")
+                else:
+                    registered_count += 1
             page = page.get_next_page()
     except Exception as e:
         print(f"Fehler beim Aufraeumen anonymer Konten: {e}")
         return
 
     state_ref.set({'last_run': now_utc.isoformat(), 'deleted_last_run': deleted, 'checked_last_run': checked})
-    print(f"Anonyme Konten aufgeraeumt: {deleted} von {checked} geprueften Konten geloescht (aelter als {CLEANUP_AGE_DAYS} Tage).")
+    # Echter Konto-Zaehler - wird gesetzt (nicht erhoeht), da hier bei jedem Lauf die
+    # tatsaechliche Gesamtzahl bekannt ist, kein hochzaehlendes Ereignis.
+    db.collection('stats').document('users').set({'total': registered_count})
+    print(f"Anonyme Konten aufgeraeumt: {deleted} von {checked} geprueften Konten geloescht (aelter als {CLEANUP_AGE_DAYS} Tage). Registrierte Konten: {registered_count}.")
 
 
 def check_all_tours():

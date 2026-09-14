@@ -1419,9 +1419,13 @@ incrementCounter('stats', 'queries', 'total');
 const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 incrementCounter('dailyStats', today, 'count');
 }
-function trackNewRegistration() {
-incrementCounter('stats', 'users', 'total');
-}
+// FIX: trackNewRegistration() (client-seitiger +1-Zähler bei jeder Registrierung)
+// entfernt - zählte nur Konten, die NACH Einführung dieses Codes über den
+// "Registrieren"-Button neu entstanden sind, nicht die zuvor schon existierenden.
+// Die tatsächliche Gesamtzahl wird jetzt stattdessen einmal täglich korrekt direkt
+// bei Firebase Auth gezählt (siehe cleanup_old_anonymous_users() in
+// check_weather.py) und nach stats/users geschrieben - unabhängig davon, wie/wann
+// ein Konto entstanden ist.
 let currentUserUid = null;
 let isRealAccount = false; // true = echtes E-Mail-Konto (nicht nur anonym)
 
@@ -1507,7 +1511,6 @@ try {
  // die Oberfläche blieb dadurch auf "nicht angemeldet" stehen, bis man manuell neu
  // geladen hat. Deshalb hier explizit selbst aktualisieren.
  updateAccountUI(auth.currentUser);
- trackNewRegistration();
  customAlert('✅ Konto erstellt! Deine bisherigen Touren bleiben erhalten.');
 } catch (e) {
  errEl.innerText = translateAuthError(e);
