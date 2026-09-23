@@ -1070,6 +1070,19 @@
              <p>Berechnet das Gesamtrisiko (Niedrig/Mäßig/Hoch) für den gesamten Tourzeitraum, getrennt nach Tal und Gipfel/Ziel sowie Zwischenpunkten entlang der Route. Warnungen fassen die kritischsten Faktoren zusammen (Gewitter, Wind, Regen, Sicht, Vereisung, Hitze/Kälte). Für die nächsten ca. 60 Stunden werden Temperatur, Wind, Böen, Regen und Gewitterpotenzial automatisch durch die präziseren Werte des hochauflösenden 1km-Modells C-LAEF AlpeAdria ersetzt, wo verfügbar - unsichtbar im Hintergrund, es wird immer einfach der genaueste verfügbare Wert angezeigt.</p>
          </div>
          <div class="help-topic">
+             <h3>🛰️ Woher kommen die Wetterdaten?</h3>
+             <p><strong>Grundlage (bis 16 Tage im Voraus):</strong> Open-Meteo vergleicht sechs Wettermodelle miteinander - "best_match" (automatische Bestauswahl), ICON-D2 (Deutscher Wetterdienst, 2km), ECMWF IFS (europäisches Modell), GFS (US-Wetterdienst), AROME Austria und AROME France (beide GeoSphere/Météo-France, hochauflösend für den Alpenraum). Aus der Streuung dieser Modelle ergibt sich die "Prognose-Verlässlichkeit" (Modellübereinstimmung) weiter unten in der Auswertung.<br><br>
+             <strong>Für die nächsten ca. 60 Stunden zusätzlich:</strong> C-LAEF AlpeAdria von GeoSphere Austria, ein eigenständiges 1km-Vorhersagemodell (feinere Auflösung als die 2-2,5km der anderen Modelle) - ersetzt automatisch Temperatur, Wind, Böen, Regen und Gewitterpotenzial, wo verfügbar.<br><br>
+             <strong>Für die Live-Tour-Wetter-Box:</strong> Ein separates 15-Minuten-Kurzfrist-Regenradar (GeoSphere Nowcast), das aktuelle Beobachtungen kurz in die Zukunft fortschreibt - unabhängig von den Vorhersagemodellen oben, nur für die nächsten paar Stunden gedacht.<br><br>
+             <strong>Geländehöhen:</strong> Open-Meteo Elevation API. <strong>Ortssuche:</strong> Open-Meteo Geocoding. <strong>Wegführung im GPX-Planer:</strong> OpenRouteService.</p>
+         </div>
+         <div class="help-topic">
+             <h3>🧮 Wie funktioniert die Risiko-Engine?</h3>
+             <p>Für jede Stunde der Tour wird ein Punktwert berechnet (0-100), getrennt für Tal und Gipfel/Ziel - der höhere der beiden bestimmt die Ampel dieser Stunde (Grün &lt;30, Gelb 30-59, Rot ab 60), und die schlechteste Stunde der ganzen Tour bestimmt das Gesamtrisiko oben.<br><br>
+             <strong>Was einfließt:</strong> Wind/Böen (gestaffelt nach Stärke, mit physikalischer Untergrenze - ab 80 km/h mindestens "Mäßig" wegen Astbruch, ab 100 km/h mindestens "Hoch" wegen Baumsturz, unabhängig von allen anderen Einstellungen), Gewitter (Wettercode + CAPE-Wert + Regenwahrscheinlichkeit), Regen/nasser Fels (ab 0,2mm/h steigend, bei Klettersteig/Fels schon ab 0,1mm ein eigener Rutschgefahr-Malus), Sicht (Schwelle abhängig von der Tourart - exponierte Touren wie Klettersteig/Grat/Hochtour reagieren empfindlicher als einfache Wanderungen), Schneeverfrachtung bei Sturm (nur Schitour/Schneeschuh), gefühlte Temperatur (Windchill bei Kälte, ab 30°C auch Hitze).<br><br>
+             <strong>Verstärkt durch:</strong> die tatsächliche Höhe (höher = empfindlicher gegenüber Wind/Gewitter, gedeckelt bei 2800m) und die gewählte Tourart (Klettersteig/Grat/Hochtour/Fels gewichten Wind/Gewitter/Nässe/Sicht stärker als eine einfache Wanderung). Die "Exposition"-Auswahl verstärkt (exponiert) oder dämpft (geschützt) diesen Aufschlag zusätzlich - kann die physikalische Wind-Untergrenze oben aber nie unterschreiten.</p>
+         </div>
+         <div class="help-topic">
              <h3>🔔 Push-Benachrichtigungen</h3>
              <p>Aktiviert automatische Warnungen für die geplante Tour, auch wenn die App geschlossen ist - deckt den gesamten verbleibenden Tourzeitraum ab, nicht nur den ursprünglich berechneten Zeitpunkt. Benötigt ein Konto.</p>
          </div>
@@ -3683,9 +3696,10 @@ try{
  const date = searchStart.toLocaleDateString('sv-SE');
  const endDate = endDt.toLocaleDateString('sv-SE');
  
- // is_day und apparent_temperature wurden abgerufen, aber nie verwendet - entfernt.
+ // "Gefühlte Temperatur" (Hitzeindex + Windchill in einem Wert) wieder ergänzt -
+ // wurde zuvor fälschlich als "nie verwendet" entfernt, sollte aber sichtbar sein.
  // freezing_level_height ergaenzt: dient als Rueckfall fuer die Schneefallgrenze.
- const vars = 'temperature_2m,precipitation,rain,snowfall,weather_code,precipitation_probability,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cape,snowfall_height,freezing_level_height,dew_point_2m';
+ const vars = 'temperature_2m,apparent_temperature,precipitation,rain,snowfall,weather_code,precipitation_probability,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cape,snowfall_height,freezing_level_height,dew_point_2m';
  const multiModels = 'best_match,icon_d2,ecmwf_ifs04,gfs_seamless,geosphere_arome_austria,arome_france';
 
  // =====================================================================
@@ -3936,6 +3950,11 @@ try{
      const t=times[bi];
      
      let temp=Number(h.temperature_2m?.[bi]??0);
+     // Gefühlte Temperatur (Hitzeindex + Windchill kombiniert): die DIFFERENZ zur
+     // realen Temperatur wird gemerkt (C-LAEF liefert keinen eigenen "gefühlt"-Wert)
+     // und weiter unten auf die ggf. verfeinerte Temperatur angewandt - sonst würde
+     // "gefühlt" nach einer C-LAEF-Verfeinerung noch auf der alten Temperatur beruhen.
+     const feelsLikeOffset=Number.isFinite(Number(h.apparent_temperature?.[bi])) ? (temp - Number(h.apparent_temperature[bi])) : 0;
      // FIX: Wurde für die Wolkenbasis im Tal gebraucht, aber nie deklariert -
      // im Unterschied zum Gipfel, wo pdew korrekt gesetzt wird. Jede Tourabfrage
      // brach deshalb mit "ReferenceError: dew is not defined" ab, sichtbar nur
@@ -3958,6 +3977,7 @@ try{
          if(claefTal.rain!==undefined) rain=claefTal.rain;
          if(claefTal.cape!==undefined) cape=claefTal.cape;
      }
+     const feelsLike=temp-feelsLikeOffset;
      let dir=Number(h.wind_direction_10m?.[bi]??0);
      let prob=Number(h.precipitation_probability?.[bi]??0);
      let vis=Number(h.visibility?.[bi]??0);
@@ -4018,6 +4038,11 @@ try{
      // Niederschlag wird jetzt auch auf den Gipfel angewandt; orographisch faellt
      // dort eher mehr, nie weniger, deshalb als Untergrenze.
      let ptemp = pH ? Number(pH.temperature_2m?.[bi]) : (hasPeakAlt ? temp - (((parsedPeakAlt - baseElev)/100) * 0.65) : temp);
+     // Offset statt fertigem Wert gemerkt (siehe Tal) - wird nach der C-LAEF-
+     // Verfeinerung weiter unten auf die dann aktuelle Gipfeltemperatur angewandt.
+     const pFeelsLikeOffset = (pH && Number.isFinite(Number(pH.apparent_temperature?.[bi])))
+         ? (ptemp - Number(pH.apparent_temperature[bi]))
+         : feelsLikeOffset; // Rückfall: gleiche Abweichung wie im Tal
      let pdew = pH ? Number(pH.dew_point_2m?.[bi]) : (temp - 3);
      let pwind = pH ? Number(pH.wind_speed_10m?.[bi]) : wind;
      let pgust = pH ? Number(pH.wind_gusts_10m?.[bi]) : (hasPeakAlt ? gust * 1.2 : gust);
@@ -4038,6 +4063,7 @@ try{
          if(claefPeak.rain!==undefined) prain=claefPeak.rain;
          if(claefPeak.cape!==undefined) pcape=claefPeak.cape;
      }
+     const pFeelsLike=ptemp-pFeelsLikeOffset;
 
      let peakCloudBaseMsl = hasPeakAlt ? Math.round(parsedPeakAlt + Math.max(0, (ptemp - pdew) * 125)) : 0;
      
@@ -4167,7 +4193,7 @@ try{
      const nebelTxt = (flag) => flag
          ? '<br><span style="color:#fbbf24">🌫️ <strong>in Wolken</strong> – Sicht am Boden stark eingeschränkt</span>' : '';
 
-     const peakBox = hasPeakAlt ? `<div><div class="weather-box-title">${secondIcon} ${secondLabel} (${Math.round(parsedPeakAlt)}m)</div>🌡️ ${ptemp.toFixed(1)}°C<br>💨 Wind: ${Math.round(pwind)} km/h (Böen: ${Math.round(pgust)} km/h)<br>🧭 ${pDirTxt}<br>🌦️ ${conditionHint(peakWeather)}<br>🌧️ ${prain.toFixed(1)}mm<br>💧 Regenwahrscheinlichkeit: ${Math.round(pprob)}%<br>👁️ Sicht: ${pvisTxt}<br>☁️ Wolkenbasis: ca. ${peakCloudBaseMsl}m${nebelTxt(imNebelGipfel)}</div>` : '';
+     const peakBox = hasPeakAlt ? `<div><div class="weather-box-title">${secondIcon} ${secondLabel} (${Math.round(parsedPeakAlt)}m)</div>🌡️ ${ptemp.toFixed(1)}°C${Math.abs(ptemp-pFeelsLike)>=1?` (gefühlt ${pFeelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(pwind)} km/h (Böen: ${Math.round(pgust)} km/h)<br>🧭 ${pDirTxt}<br>🌦️ ${conditionHint(peakWeather)}<br>🌧️ ${prain.toFixed(1)}mm<br>💧 Regenwahrscheinlichkeit: ${Math.round(pprob)}%<br>👁️ Sicht: ${pvisTxt}<br>☁️ Wolkenbasis: ca. ${peakCloudBaseMsl}m${nebelTxt(imNebelGipfel)}</div>` : '';
 
      // Zwischenpunkt nur zeigen, wenn er tatsächlich der kritischste ist.
      const routeBox = (routeWorst && routeWorst.score > slotMaxScore0 + 5)
@@ -4179,7 +4205,7 @@ try{
 
      const cls = slotMaxScore>=60?'status-red':slotMaxScore>=30?'status-orange':'status-green';
 
-     slots+=`<div class="slot ${cls}" style="animation-delay:${Math.min(i,12)*50}ms"><div style="display:flex;justify-content:space-between"><strong>⏱️ ${t.replace('T',' ')} Uhr</strong><span>Risiko: <strong>${slotMaxScore>=60?'Hoch':(slotMaxScore>=30?'Mäßig':'Niedrig')}</strong></span></div><div class="weather-split${hasPeakAlt?'':' single-col'}"><div><div class="weather-box-title">📍 Tal (${Math.round(baseElev)}m)</div>🌡️ ${temp.toFixed(1)}°C<br>💨 Wind: ${Math.round(wind)} km/h (Böen: ${Math.round(gust)} km/h)<br>🧭 ${dirTxt}<br>🌦️ ${hint}<br>🌧️ ${rain.toFixed(1)}mm<br>💧 Regenwahrscheinlichkeit: ${Math.round(prob)}%<br>👁️ Sicht: ${visTxt}<br>☁️ Wolkenbasis: ca. ${valleyCloudBaseMsl}m${nebelTxt(imNebelTal)}</div>${peakBox}</div>${routeBox}<div style="font-size:11px">Bewölkung: ${Math.round(cloud)}%${snowHeight !== null ? ` · Schneefallgrenze: ${Math.round(snowHeight)}m` : ''}</div></div>`;
+     slots+=`<div class="slot ${cls}" style="animation-delay:${Math.min(i,12)*50}ms"><div style="display:flex;justify-content:space-between"><strong>⏱️ ${t.replace('T',' ')} Uhr</strong><span>Risiko: <strong>${slotMaxScore>=60?'Hoch':(slotMaxScore>=30?'Mäßig':'Niedrig')}</strong></span></div><div class="weather-split${hasPeakAlt?'':' single-col'}"><div><div class="weather-box-title">📍 Tal (${Math.round(baseElev)}m)</div>🌡️ ${temp.toFixed(1)}°C${Math.abs(temp-feelsLike)>=1?` (gefühlt ${feelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(wind)} km/h (Böen: ${Math.round(gust)} km/h)<br>🧭 ${dirTxt}<br>🌦️ ${hint}<br>🌧️ ${rain.toFixed(1)}mm<br>💧 Regenwahrscheinlichkeit: ${Math.round(prob)}%<br>👁️ Sicht: ${visTxt}<br>☁️ Wolkenbasis: ca. ${valleyCloudBaseMsl}m${nebelTxt(imNebelTal)}</div>${peakBox}</div>${routeBox}<div style="font-size:11px">Bewölkung: ${Math.round(cloud)}%${snowHeight !== null ? ` · Schneefallgrenze: ${Math.round(snowHeight)}m` : ''}</div></div>`;
  }
 
  // FIX: Bisher gab es pro Ort (Tal/Gipfel) eine eigene Sichtwarnung, jeweils mit
