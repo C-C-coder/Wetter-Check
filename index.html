@@ -2883,25 +2883,18 @@ return r.json();
 // aus der Dokumentation des Vorgängermodells (nwp-v1) - beim tatsächlichen
 // Nachfolger nicht 1:1 verifiziert, daher hier bewusst defensiv/fehlertolerant.
 async function fetchGeoSphereNwpV2(lat,lon){
-const params='t2m,u10m,v10m,ugust,vgust,rain_acc,tcc,cape';
+// Echte, per Metadaten-Auskunft der API bestätigte Parameternamen für nwp-v2 -
+// komplett anders als beim alten nwp-v1 ("2t" statt "t2m", "10u"/"10v" statt
+// "u10m"/"v10m", "10fg" ist bereits die fertige Böen-Geschwindigkeit als ein
+// einzelner Wert, nicht zwei Komponenten wie beim alten Modell). "rain" ist der
+// Wert pro Stunde, nicht aufsummiert seit Modellstart - keine Umrechnung nötig.
+const params='2t,10u,10v,10fg,rain,cape';
 const url='https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nwp-v2-1h-1km?lat_lon='+
 encodeURIComponent(lat.toFixed(5)+','+lon.toFixed(5))+
 '&parameters='+params+'&output_format=geojson';
 const r=await fetch(url,{cache:'no-store'});
 if(!r.ok){
- // GeoSphere liefert bei 400 idR den konkreten Grund im Antworttext (z.B. welcher
- // Parameter-Name ungültig ist) - bisher wurde nur der Status-Code geloggt, ohne
- // diesen Text, der eigentliche Grund blieb dadurch unsichtbar.
  const bodyText=await r.text().catch(()=>'');
- // EINMALIGE DIAGNOSE: Statt die Parameter-Namen weiter zu raten, fragen wir die
- // Metadaten-Auskunft der API direkt - die listet alle für dieses Modell gültigen
- // Parameternamen auf. Ergebnis landet nur im Debug-Log, verändert nichts an der
- // App selbst. Kann nach erfolgreicher Klärung wieder entfernt werden.
- try{
-     const metaR=await fetch('https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nwp-v2-1h-1km/metadata',{cache:'no-store'});
-     const metaText=await metaR.text();
-     logDebugError('NWP v2 Metadata (Diagnose)', new Error(metaText.slice(0,1500)));
- }catch(metaErr){ /* Diagnose selbst darf nichts zusätzlich kaputt machen */ }
  throw new Error('GeoSphere NWP v2 HTTP '+r.status+': '+bodyText.slice(0,300));
 }
 return r.json();
@@ -2933,12 +2926,11 @@ try{
  const idx=findClosestTimeIndex(times,startDt);
  if(idx<0) throw new Error('Kein passender Zeitpunkt gefunden');
 
- const t2m=geoSphereValues(f,'t2m')[idx];
- const u10=geoSphereValues(f,'u10m')[idx];
- const v10=geoSphereValues(f,'v10m')[idx];
- const ug=geoSphereValues(f,'ugust')[idx];
- const vg=geoSphereValues(f,'vgust')[idx];
- const tcc=geoSphereValues(f,'tcc')[idx];
+ const t2m=geoSphereValues(f,'2t')[idx];
+ const u10=geoSphereValues(f,'10u')[idx];
+ const v10=geoSphereValues(f,'10v')[idx];
+ const gust=geoSphereValues(f,'10fg')[idx]; // bereits fertiger Böen-Wert, keine Komponenten
+ const rain=geoSphereValues(f,'rain')[idx]; // schon Wert pro Stunde, keine Aufsummierung
  const cape=geoSphereValues(f,'cape')[idx];
 
  // Wenn nicht mal die Basiswerte (Temperatur, Wind) plausibel als Zahl ankommen,
@@ -2949,12 +2941,12 @@ try{
  }
 
  const windKmh=Math.round(Math.sqrt(u10*u10+v10*v10)*3.6);
- const gustKmh=(Number.isFinite(ug)&&Number.isFinite(vg))?Math.round(Math.sqrt(ug*ug+vg*vg)*3.6):null;
+ const gustKmh=Number.isFinite(gust)?Math.round(gust*3.6):null;
  const zeit=new Date(times[idx]).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 
  let text=`🎯 C-LAEF AlpeAdria (1km, GeoSphere) - Verfeinerte Nahprognose für ${zeit} Uhr:\n${Math.round(t2m)}°C, Wind ${windKmh} km/h`;
  if(gustKmh!==null) text+=` (Böen ${gustKmh} km/h)`;
- if(Number.isFinite(tcc)) text+=`, Bewölkung ${Math.round(tcc)}%`;
+ if(Number.isFinite(rain) && rain>0) text+=`, Regen ${rain.toFixed(1)}mm`;
  if(Number.isFinite(cape) && cape>500) text+=`\n⚡ Erhöhtes Gewitterpotenzial (CAPE ${Math.round(cape)} J/kg)`;
  text+='\nExperimentell - ergänzt, ersetzt aber nicht die Werte oben.';
 
