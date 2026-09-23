@@ -1287,6 +1287,7 @@
 </div>
 
 <div id="liveTourBoxHost"></div>
+<div id="claefBox" class="small-note" style="margin-top:8px;padding:10px;background:var(--card-bg);border-radius:10px;border:1px solid var(--border);display:none;white-space:pre-line;"></div>
 <div id="results" class="results"></div>
 <div class="footer-copyright" id="footerCopyright" style="text-align:center;font-size:11px;color:var(--text-light);margin-top:20px">© 2026 Christian Camus. Alle Rechte vorbehalten.</div>
 </div>
@@ -2872,6 +2873,87 @@ if(!r.ok)throw new Error('GeoSphere Nowcast HTTP '+r.status);
 return r.json();
 }
 
+// ===========================================================================
+// C-LAEF AlpeAdria (nwp-v2-1h-1km) - neues, hochauflösenderes (1km statt 2,5km)
+// GeoSphere-Vorhersagemodell, Nachfolger von nwp-v1-1h-2500m. Deckt nur die
+// nächsten ca. 60 Stunden ab (kein Ersatz für den bestehenden 16-Tage-Mix aus
+// mehreren Modellen), wird deshalb NUR als zusätzliche, separate Verfeinerung
+// angezeigt, wenn die Tour bald startet - NICHT in die Risiko-Berechnung
+// eingebaut, bis die Datenstruktur live bestätigt ist. Parameter-Codes stammen
+// aus der Dokumentation des Vorgängermodells (nwp-v1) - beim tatsächlichen
+// Nachfolger nicht 1:1 verifiziert, daher hier bewusst defensiv/fehlertolerant.
+async function fetchGeoSphereNwpV2(lat,lon){
+const params='t2m,u10m,v10m,ugust,vgust,rain_acc,tcc,cape';
+const url='https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nwp-v2-1h-1km?lat_lon='+
+encodeURIComponent(lat.toFixed(5)+','+lon.toFixed(5))+
+'&parameters='+params+'&output_format=geojson';
+const r=await fetch(url,{cache:'no-store'});
+if(!r.ok)throw new Error('GeoSphere NWP v2 HTTP '+r.status);
+return r.json();
+}
+
+// Sucht in einer Zeitreihe den Index, dessen Zeitstempel am nächsten an targetDt liegt.
+function findClosestTimeIndex(times, targetDt){
+if(!times||!times.length) return -1;
+let bestIdx=-1, bestDiff=Infinity;
+times.forEach((t,i)=>{
+ const diff=Math.abs(new Date(t).getTime()-targetDt.getTime());
+ if(diff<bestDiff){bestDiff=diff;bestIdx=i;}
+});
+return bestIdx;
+}
+
+async function updateClaefRefinement(lat,lon,startDt,tageBisStart){
+const box=document.getElementById('claefBox');
+const MAX_CLAEF_HOURS=60;
+if(tageBisStart*24>MAX_CLAEF_HOURS || tageBisStart<-0.5){
+ box.style.display='none';
+ return;
+}
+try{
+ const data=await fetchGeoSphereNwpV2(lat,lon);
+ const f=data?.features?.[0];
+ if(!f) throw new Error('Keine Feature-Daten in der Antwort');
+ const times=geoSphereTimestamps(data,f);
+ const idx=findClosestTimeIndex(times,startDt);
+ if(idx<0) throw new Error('Kein passender Zeitpunkt gefunden');
+
+ const t2m=geoSphereValues(f,'t2m')[idx];
+ const u10=geoSphereValues(f,'u10m')[idx];
+ const v10=geoSphereValues(f,'v10m')[idx];
+ const ug=geoSphereValues(f,'ugust')[idx];
+ const vg=geoSphereValues(f,'vgust')[idx];
+ const tcc=geoSphereValues(f,'tcc')[idx];
+ const cape=geoSphereValues(f,'cape')[idx];
+
+ // Wenn nicht mal die Basiswerte (Temperatur, Wind) plausibel als Zahl ankommen,
+ // stimmen die Parameter-Namen beim neuen Datensatz offenbar nicht - dann lieber
+ // sauber ausblenden statt falsche/kaputte Werte zu zeigen.
+ if(!Number.isFinite(t2m) || !Number.isFinite(u10) || !Number.isFinite(v10)){
+     throw new Error('Unerwartete Datenstruktur - Werte nicht als Zahl lesbar');
+ }
+
+ const windKmh=Math.round(Math.sqrt(u10*u10+v10*v10)*3.6);
+ const gustKmh=(Number.isFinite(ug)&&Number.isFinite(vg))?Math.round(Math.sqrt(ug*ug+vg*vg)*3.6):null;
+ const zeit=new Date(times[idx]).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+
+ let text=`🎯 C-LAEF AlpeAdria (1km, GeoSphere) - Verfeinerte Nahprognose für ${zeit} Uhr:\n${Math.round(t2m)}°C, Wind ${windKmh} km/h`;
+ if(gustKmh!==null) text+=` (Böen ${gustKmh} km/h)`;
+ if(Number.isFinite(tcc)) text+=`, Bewölkung ${Math.round(tcc)}%`;
+ if(Number.isFinite(cape) && cape>500) text+=`\n⚡ Erhöhtes Gewitterpotenzial (CAPE ${Math.round(cape)} J/kg)`;
+ text+='\nExperimentell - ergänzt, ersetzt aber nicht die Werte oben.';
+
+ box.innerText=text;
+ box.style.display='block';
+} catch(e){
+ // Fehlschlag ist hier bewusst UNKRITISCH: Box bleibt einfach versteckt, die
+ // eigentliche Wetterabfrage oben ist davon komplett unberührt. Trotzdem geloggt,
+ // damit wir beim nächsten Testen sehen, woran es lag (z.B. andere Parameter-Namen).
+ logDebugError('updateClaefRefinement', e);
+ box.style.display='none';
+}
+}
+
 async function fetchGeoSphereNowcastPoints(points){
 const url='https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nowcast-v1-15min-1km?'+
 points.map(p=>'lat_lon='+encodeURIComponent(p.lat.toFixed(5)+','+p.lon.toFixed(5))).join('&')+
@@ -4274,6 +4356,9 @@ try{
  // wenn die Tour laut Uhrzeit gerade läuft.
  scheduleLiveTourWeather();
  trackTourQuery();
+ // Fire-and-forget: eigene, unkritische Zusatzbox (siehe updateClaefRefinement) -
+ // blockiert die Hauptanzeige nicht und wird bei jedem Fehler einfach ausgeblendet.
+ updateClaefRefinement(lat, lon, startDt, tageBisStart);
  
 } catch(e) { 
  // FIX: Dieser Block hat den echten Fehler bisher komplett verschluckt - die
