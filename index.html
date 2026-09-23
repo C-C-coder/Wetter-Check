@@ -2893,6 +2893,15 @@ if(!r.ok){
  // Parameter-Name ungültig ist) - bisher wurde nur der Status-Code geloggt, ohne
  // diesen Text, der eigentliche Grund blieb dadurch unsichtbar.
  const bodyText=await r.text().catch(()=>'');
+ // EINMALIGE DIAGNOSE: Statt die Parameter-Namen weiter zu raten, fragen wir die
+ // Metadaten-Auskunft der API direkt - die listet alle für dieses Modell gültigen
+ // Parameternamen auf. Ergebnis landet nur im Debug-Log, verändert nichts an der
+ // App selbst. Kann nach erfolgreicher Klärung wieder entfernt werden.
+ try{
+     const metaR=await fetch('https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nwp-v2-1h-1km/metadata',{cache:'no-store'});
+     const metaText=await metaR.text();
+     logDebugError('NWP v2 Metadata (Diagnose)', new Error(metaText.slice(0,1500)));
+ }catch(metaErr){ /* Diagnose selbst darf nichts zusätzlich kaputt machen */ }
  throw new Error('GeoSphere NWP v2 HTTP '+r.status+': '+bodyText.slice(0,300));
 }
 return r.json();
