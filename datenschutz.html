@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datenschutzerklärung – Bergtouren Wetter Ampel</title>
+<style>
+:root {
+ --bg: #0a1220;
+ --card-bg: rgba(255,255,255,0.05);
+ --card-border: rgba(255,255,255,0.09);
+ --text: #e6ecf4;
+ --text-light: #7a8ba3;
+ --accent: #5de8b0;
+}
+* { box-sizing: border-box; }
+body {
+ margin: 0; padding: 20px 16px 60px 16px; background: var(--bg); color: var(--text);
+ font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+ max-width: 720px; margin-left: auto; margin-right: auto; line-height: 1.6;
+}
+h1 { font-size: 1.3rem; margin: 10px 0 4px 0; }
+.sub { color: var(--text-light); font-size: 0.85rem; margin-bottom: 24px; }
+h2 { font-size: 1.02rem; color: var(--accent); margin-top: 30px; border-bottom: 1px solid var(--card-border); padding-bottom: 6px; }
+h3 { font-size: 0.92rem; margin-top: 18px; margin-bottom: 4px; }
+p, li { font-size: 0.88rem; color: var(--text); }
+ul { padding-left: 20px; }
+a { color: var(--accent); }
+.box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 16px; margin: 14px 0; }
+.back-link { display: inline-block; margin-bottom: 10px; color: var(--text-light); text-decoration: none; font-size: 0.85rem; }
+.stand { color: var(--text-light); font-size: 0.78rem; margin-top: 40px; text-align: center; }
+</style>
+</head>
+<body>
+
+<a href="index.html" class="back-link">← Zurück zur App</a>
+<h1>Datenschutzerklärung</h1>
+<div class="sub">Bergtouren Wetter Ampel</div>
+
+<div class="box">
+<p><strong>Verantwortlicher im Sinne der DSGVO:</strong><br>
+Christian Camus<br>
+E-Mail: <a href="mailto:christian.0.camus@gmail.com">christian.0.camus@gmail.com</a></p>
+</div>
+
+<h2>1. Allgemeines</h2>
+<p>Diese App ("Bergtouren Wetter Ampel") verarbeitet personenbezogene Daten ausschließlich im Rahmen der unten beschriebenen Zwecke. Rechtsgrundlage ist die EU-Datenschutz-Grundverordnung (DSGVO) in Verbindung mit dem österreichischen Datenschutzgesetz (DSG). Diese App wird nicht kommerziell betrieben, es findet keine Weitergabe von Daten zu Werbezwecken statt.</p>
+
+<h2>2. Welche Daten werden verarbeitet?</h2>
+
+<h3>2.1 Kontodaten (bei Registrierung)</h3>
+<p>Wenn du dich mit E-Mail-Adresse und Passwort registrierst, werden diese bei unserem Auth-Anbieter Firebase Authentication (Google Ireland Ltd.) gespeichert. Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) bzw. Vertragserfüllung (Art. 6 Abs. 1 lit. b DSGVO), da ein Konto zur Nutzung bestimmter Funktionen (Speichern, Push-Benachrichtigungen, GPX-Planer) notwendig ist. Ohne Registrierung wird automatisch ein anonymes, nicht-personenbezogenes Konto angelegt; dieses wird nach 14 Tagen Inaktivität automatisch wieder gelöscht.</p>
+
+<h3>2.2 Tour- und Standortdaten</h3>
+<p>Wenn du eine Tour speicherst oder Push-Benachrichtigungen aktivierst, werden folgende Daten in der Cloud-Datenbank (Firebase Firestore) gespeichert: Start- und Zielkoordinaten, Tourname, GPX-Track (falls hochgeladen/gezeichnet), Tourart, geplante Start-/Endzeit. Diese Daten sind ausschließlich über dein eigenes Konto abrufbar (technisch durch Firestore-Sicherheitsregeln durchgesetzt). Rechtsgrundlage: Einwilligung bzw. Vertragserfüllung.</p>
+
+<h3>2.3 Standortabfrage (GPS)</h3>
+<p>Mit deiner Erlaubnis nutzt die App die GPS-Position deines Geräts, um deinen Standort als Startpunkt zu übernehmen bzw. während einer laufenden Tour deine ungefähre Position für die Live-Wetter-Einschätzung zu bestimmen. Diese Standortdaten werden an Wetterdienste (siehe Punkt 3) übermittelt, um die Wetterabfrage für genau diesen Ort durchzuführen. Die GPS-Abfrage erfolgt nur mit deiner ausdrücklichen Erlaubnis über die Berechtigungsabfrage deines Browsers/Betriebssystems.</p>
+
+<h3>2.4 Push-Benachrichtigungen</h3>
+<p>Bei Aktivierung wird ein geräte-/browserspezifisches Push-Token bei Firebase Cloud Messaging gespeichert, um dir Wetterwarnungen für deine aktive Tour zuzusenden. Dieses Token ist an dein Konto gebunden und wird bei Deaktivierung der Push-Funktion bzw. Kontolöschung entfernt.</p>
+
+<h3>2.5 Feedback</h3>
+<p>Wenn du über die Feedback-Funktion eine Nachricht sendest, werden Kategorie, Text, Zeitstempel sowie (nur wenn du angemeldet bist) deine E-Mail-Adresse gespeichert. Diese Daten sind ausschließlich für den Verantwortlichen (siehe oben) einsehbar, nicht für andere Nutzer.</p>
+
+<h3>2.6 Anonyme Nutzungsstatistik</h3>
+<p>Die App zählt, wie oft insgesamt eine Wetterabfrage durchgeführt wird, und wie viele Konten registriert sind - ausschließlich als anonyme Zahlen, ohne Personenbezug, ohne Rückschluss auf einzelne Nutzer oder einzelne Touren.</p>
+
+<h3>2.7 Technische Daten (Hosting)</h3>
+<p>Diese App wird über GitHub Pages (GitHub Inc., eine Microsoft-Tochter) gehostet. Beim Aufruf der App werden durch den Hosting-Anbieter automatisch technische Daten (u.a. IP-Adresse, Zeitpunkt des Zugriffs, User-Agent) in Server-Logs verarbeitet - dies liegt außerhalb unseres Einflussbereichs und unterliegt der Datenschutzerklärung von GitHub (siehe Punkt 3).</p>
+
+<h2>3. Eingesetzte Drittanbieter</h2>
+<p>Für den Betrieb der App werden folgende externe Dienste eingebunden. Mit jedem dieser Anbieter besteht - soweit erforderlich - ein Auftragsverarbeitungsvertrag (Data Processing Agreement) des jeweiligen Anbieters, dem die Nutzung dieser App unterliegt:</p>
+<ul>
+<li><strong>Google Firebase</strong> (Authentifizierung, Datenbank, Push-Benachrichtigungen) – <a href="https://firebase.google.com/support/privacy" target="_blank">Datenschutzerklärung</a> · <a href="https://firebase.google.com/terms/data-processing-terms" target="_blank">Auftragsverarbeitungsvertrag (DPA)</a></li>
+<li><strong>GitHub Pages</strong> (Hosting dieser App) – <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank">Datenschutzerklärung</a> · <a href="https://github.com/customer-terms/github-data-protection-agreement" target="_blank">Auftragsverarbeitungsvertrag (DPA)</a></li>
+<li><strong>Open-Meteo</strong> (Wettervorhersage-Daten, Geocoding, Höhendaten) – <a href="https://open-meteo.com/en/terms" target="_blank">Nutzungsbedingungen/Datenschutz</a></li>
+<li><strong>GeoSphere Austria</strong> (österreichischer Wetterdienst – Regenradar/Nowcast, C-LAEF AlpeAdria Vorhersagemodell) – <a href="https://www.geosphere.at/de/legal" target="_blank">Datenschutzerklärung / Rechtliches</a></li>
+<li><strong>OpenRouteService</strong> (Wegfindung im GPX-Planer, betrieben von HeiGIT) – <a href="https://heigit.org/privacy-policy/" target="_blank">Datenschutzerklärung</a></li>
+<li><strong>OpenStreetMap-Mitwirkende / Kartendarstellung</strong> (Kartenkacheln) – <a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank">Datenschutzerklärung</a></li>
+</ul>
+<p>Bei jeder Wetterabfrage werden die dafür notwendigen Koordinaten (Start-/Zielort deiner Tour) an die oben genannten Wetterdienste übermittelt - ohne diese Übermittlung kann keine Wettervorhersage für deinen Standort abgerufen werden.</p>
+
+<h2>4. Speicherdauer</h2>
+<p>Kontodaten und Touren bleiben gespeichert, bis du sie selbst löschst oder dein Konto über die Funktion "Konto & alle Daten unwiderruflich löschen" entfernst. Anonyme (nicht registrierte) Konten werden automatisch nach 14 Tagen Inaktivität gelöscht. Feedback-Einträge werden nicht automatisch gelöscht, können aber auf Anfrage (siehe Punkt 6) entfernt werden.</p>
+
+<h2>5. Cookies & lokale Speicherung</h2>
+<p>Diese App verwendet keine Tracking- oder Werbe-Cookies. Zur Funktion der App (z.B. Merken deiner Einstellungen, Offline-Anzeige des letzten Wetterstands) wird lokaler Speicher deines Browsers (localStorage, IndexedDB) verwendet - diese Daten verlassen dein Gerät nicht, außer den explizit oben beschriebenen Fällen.</p>
+
+<h2>6. Deine Rechte</h2>
+<p>Du hast nach der DSGVO das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21) bezüglich deiner Daten. Für dein eigenes Konto kannst du die meisten dieser Rechte direkt selbst über die App ausüben (Speichern/Löschen deiner Touren, "Konto & alle Daten löschen"). Für alle weiteren Anliegen kontaktiere den Verantwortlichen über die oben genannte E-Mail-Adresse.</p>
+<p>Du hast außerdem das Recht, dich bei der österreichischen Datenschutzbehörde zu beschweren:<br>
+<strong>Österreichische Datenschutzbehörde</strong><br>
+Barichgasse 40-42, 1030 Wien<br>
+<a href="https://www.dsb.gv.at" target="_blank">www.dsb.gv.at</a></p>
+
+<h2>7. Änderungen dieser Erklärung</h2>
+<p>Diese Datenschutzerklärung kann bei Weiterentwicklung der App angepasst werden. Die jeweils aktuelle Fassung ist über die App abrufbar.</p>
+
+<div class="stand">Stand: September 2026</div>
+
+</body>
+</html>

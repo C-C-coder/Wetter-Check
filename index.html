@@ -175,6 +175,10 @@
      border-color: var(--accent);
      box-shadow: 0 0 0 3px var(--accent-glow);
  }
+ input:disabled, .gpx-btn:disabled {
+     opacity: 0.4;
+     cursor: not-allowed;
+ }
 
  /* FIX: Die aufgeklappte Liste eines <select> wird am PC vom Betriebssystem
     gerendert und übernimmt dabei NICHT automatisch den dunklen Seitenhintergrund -
@@ -326,6 +330,29 @@
  #customDialogCancelBtn { background: rgba(255,255,255,0.08); color: var(--text); }
  #customDialogOkBtn { background: var(--accent); color: #04140d; }
  #customDialogOkBtn.danger { background: #ef4444; color: #fff; }
+
+ /* Einstiegs-Overlay: Haftungsausschluss + Datenverarbeitung, muss einmalig bestätigt
+    werden, bevor die App nutzbar ist. Höchster z-index von allen Overlays - blockiert
+    absichtlich alles andere, kein Schließen durch Klick daneben (nur der OK-Button). */
+ #onboardingOverlay {
+     display: none; position: fixed; inset: 0; z-index: 9999999999;
+     background: rgba(5,8,13,0.97); align-items: center; justify-content: center;
+     padding: 20px; overflow-y: auto;
+ }
+ #onboardingOverlay.open { display: flex; }
+ #onboardingPanel {
+     background: var(--bg); border: 1px solid var(--card-border); border-radius: 16px;
+     width: 100%; max-width: 440px; padding: 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+     margin: auto;
+ }
+ #onboardingPanel h2 { margin: 0 0 14px 0; font-size: 1.1rem; color: var(--accent); text-align: center; }
+ #onboardingPanel .ob-section { margin-bottom: 14px; font-size: 0.85rem; line-height: 1.55; color: var(--text); }
+ #onboardingPanel .ob-section strong { color: var(--text); }
+ #onboardingPanel a { color: var(--accent); }
+ #onboardingOkBtn {
+     width: 100%; margin-top: 10px; padding: 13px; border-radius: 10px; border: none;
+     background: var(--accent); color: #04140d; font-weight: 700; font-size: 0.95rem; cursor: pointer;
+ }
  #helpMenuOverlay {
      display: none; position: fixed; inset: 0; z-index: 99999;
      background: rgba(5,8,13,0.92);
@@ -981,6 +1008,18 @@
 </style>
 </head>
 <body>
+<div id="onboardingOverlay">
+ <div id="onboardingPanel">
+     <h2>⚠️ Bevor du startest</h2>
+     <div class="ob-section">
+         <strong>Entscheidungshilfe, kein Ersatz für deine eigene Einschätzung:</strong> Wetterprognosen sind ihrer Natur nach unsicher, besonders im alpinen Gelände. Die letztendliche Verantwortung für deine Tour liegt bei dir selbst - auf Basis deiner Erfahrung, Ausrüstung und ggf. Rücksprache mit Hütten, Bergführern oder amtlichen Warndiensten, die im Zweifel Vorrang haben. Ausführlich im <a href="impressum.html" target="_blank">Haftungsausschluss</a>.
+     </div>
+     <div class="ob-section">
+         Für die Nutzung werden gewisse Daten verarbeitet (z.B. dein Standort für die Wetterabfrage, bei Registrierung deine E-Mail-Adresse). Details dazu in der <a href="datenschutz.html" target="_blank">Datenschutzerklärung</a>.
+     </div>
+     <button id="onboardingOkBtn" onclick="acceptOnboarding()">✅ Verstanden & OK</button>
+ </div>
+</div>
 <button id="helpMenuBtn" onclick="openHelpMenu()" title="Hilfe">❓</button>
 <button id="feedbackBtn" onclick="openFeedbackMenu()" title="Feedback">💬</button>
 <div id="customDialogOverlay">
@@ -1143,11 +1182,15 @@
  <label>👤 Konto</label>
  <div id="accountStatusLoggedOut">
      <div class="small-note" style="margin-bottom:8px">Ohne Anmeldung: Tour erstellen, Wetter abfragen, 3D-Wetter ansehen. Für <strong>Speichern</strong>, <strong>Push-Benachrichtigungen</strong> und den <strong>GPX-Planer</strong> ist ein kostenloses Konto nötig.</div>
-     <input type="email" id="accountEmail" placeholder="Gültige E-Mail-Adresse eingeben" autocomplete="email">
-     <input type="password" id="accountPassword" placeholder="Passwort - mind. 6 Zeichen" autocomplete="current-password" style="margin-top:8px">
+     <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text-light);margin-bottom:10px;cursor:pointer">
+         <input type="checkbox" id="privacyConsentCheckbox" onchange="toggleAccountFormEnabled()" style="margin-top:2px;flex-shrink:0">
+         <span>Ich habe die <a href="datenschutz.html" target="_blank" style="color:var(--accent)" onclick="event.stopPropagation()">Datenschutzerklärung</a> gelesen und akzeptiere sie.</span>
+     </label>
+     <input type="email" id="accountEmail" placeholder="Gültige E-Mail-Adresse eingeben" autocomplete="email" disabled>
+     <input type="password" id="accountPassword" placeholder="Passwort - mind. 6 Zeichen" autocomplete="current-password" style="margin-top:8px" disabled>
      <div style="display:flex;gap:8px;margin-top:8px">
-         <button type="button" class="gpx-btn" style="flex:1" onclick="registerWithEmail()">📝 Registrieren</button>
-         <button type="button" class="gpx-btn" style="flex:1" onclick="loginWithEmail()">🔑 Anmelden</button>
+         <button type="button" class="gpx-btn" id="registerBtn" style="flex:1" onclick="registerWithEmail()" disabled>📝 Registrieren</button>
+         <button type="button" class="gpx-btn" id="loginBtn" style="flex:1" onclick="loginWithEmail()" disabled>🔑 Anmelden</button>
      </div>
      <div style="text-align:center;margin-top:8px">
          <a href="#" onclick="resetPassword();return false;" style="color:var(--text-light);font-size:12px;text-decoration:underline">Passwort vergessen?</a>
@@ -1301,7 +1344,13 @@
 
 <div id="liveTourBoxHost"></div>
 <div id="results" class="results"></div>
-<div class="footer-copyright" id="footerCopyright" style="text-align:center;font-size:11px;color:var(--text-light);margin-top:20px">© 2026 Christian Camus. Alle Rechte vorbehalten.</div>
+<div style="text-align:center;font-size:10px;color:var(--text-light);margin-top:20px;line-height:1.6">
+Wetterdaten: <a href="https://open-meteo.com/" target="_blank" style="color:var(--text-light)">Open-Meteo.com</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" style="color:var(--text-light)">CC-BY 4.0</a>) &amp;
+<a href="https://www.geosphere.at/" target="_blank" style="color:var(--text-light)">GeoSphere Austria</a><br>
+Kartendaten: © <a href="https://www.openstreetmap.org/copyright" target="_blank" style="color:var(--text-light)">OpenStreetMap-Mitwirkende</a> (ODbL)
+</div>
+<div style="text-align:center;font-size:11px;margin-top:10px"><a href="datenschutz.html" style="color:var(--text-light);text-decoration:underline">Datenschutzerklärung</a> · <a href="impressum.html" style="color:var(--text-light);text-decoration:underline">Impressum & Haftungsausschluss</a></div>
+<div class="footer-copyright" id="footerCopyright" style="text-align:center;font-size:11px;color:var(--text-light);margin-top:4px">© 2026 Christian Camus. Alle Rechte vorbehalten.</div>
 </div>
 
 <div id="debug-error-panel">
@@ -1498,6 +1547,18 @@ const map = {
  'auth/requires-recent-login': 'Bitte einmal ab- und wieder anmelden, dann erneut versuchen.'
 };
 return (e && map[e.code]) || ('Fehler: ' + (e && e.message ? e.message : 'Unbekannt'));
+}
+
+// Schaltet E-Mail-Feld, Passwort-Feld und beide Buttons (Registrieren + Anmelden,
+// da sie sich dasselbe Feld teilen) erst frei, sobald die Datenschutzerklärung
+// bestätigt wurde - gilt bewusst für beide Aktionen, nicht nur fürs Registrieren,
+// weil das Feld gemeinsam genutzt wird.
+function toggleAccountFormEnabled() {
+const checked = document.getElementById('privacyConsentCheckbox').checked;
+document.getElementById('accountEmail').disabled = !checked;
+document.getElementById('accountPassword').disabled = !checked;
+document.getElementById('registerBtn').disabled = !checked;
+document.getElementById('loginBtn').disabled = !checked;
 }
 
 async function registerWithEmail() {
@@ -4750,6 +4811,21 @@ try {
 document.getElementById('feedbackOverlay').addEventListener('click', (e) => {
 if (e.target.id === 'feedbackOverlay') closeFeedbackMenu();
 });
+
+// Einstiegs-Overlay (Haftungsausschluss + Datenverarbeitung): einmal bestätigt,
+// merkt sich localStorage das dauerhaft - taucht danach nicht mehr auf, auch nicht
+// nach Neuladen der Seite oder in einer neuen Sitzung. Läuft VOR allem anderen im
+// DOMContentLoaded-Handler, damit die App-Oberfläche dahinter zwar schon sichtbar
+// ist (kein Warten auf Netzwerk nötig), aber wirklich nichts anklickbar ist, bis
+// bestätigt wurde.
+const ONBOARDING_KEY = 'bergtouren_onboardingAccepted_v1';
+if (localStorage.getItem(ONBOARDING_KEY) !== '1') {
+document.getElementById('onboardingOverlay').classList.add('open');
+}
+function acceptOnboarding() {
+localStorage.setItem(ONBOARDING_KEY, '1');
+document.getElementById('onboardingOverlay').classList.remove('open');
+}
 
 window.addEventListener('DOMContentLoaded',()=>{
 enhanceAllSelects();
