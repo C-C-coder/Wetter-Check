@@ -2554,6 +2554,12 @@ if __name__ == "__main__":
     import sys
     if '--selftest' in sys.argv:
         sys.exit(0 if selftest() else 1)
-    check_new_feedback()
+    # FIX: Ein Fehler in dieser (nicht sicherheitskritischen) Zusatzfunktion durfte
+    # bisher den kompletten restlichen Durchlauf mitreissen - inklusive der echten
+    # Tour-Wetterwarnungen, die weitaus wichtiger sind. Jetzt einzeln abgesichert.
+    try:
+        check_new_feedback()
+    except Exception as e:
+        print(f"Fehler bei check_new_feedback (unkritisch, restlicher Durchlauf läuft weiter): {e}")
     cleanup_old_anonymous_users()
     check_all_tours()
