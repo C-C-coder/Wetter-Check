@@ -1048,6 +1048,12 @@
                  <option value="Sonstiges">💬 Sonstiges</option>
              </select>
              <textarea id="feedbackText" placeholder="Kurz beschreiben, worum es geht..."></textarea>
+             <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-light);margin-top:10px;cursor:pointer">
+                 <input type="checkbox" id="feedbackWantsReply" onchange="toggleFeedbackReplyEmail()">
+                 <span>📧 Ich möchte eine Antwort erhalten</span>
+             </label>
+             <input type="email" id="feedbackReplyEmail" placeholder="Deine E-Mail-Adresse für die Antwort" style="display:none;margin-top:8px">
+             <div id="feedbackReplyEmailNote" class="small-note" style="display:none;margin-top:6px;color:var(--text-light)"></div>
              <button type="button" class="gpx-btn" style="width:100%;margin-top:10px" onclick="submitFeedback()">Feedback senden</button>
          </div>
          <div id="feedbackThanks">
@@ -1078,7 +1084,7 @@
          </div>
          <div class="help-topic">
              <h3>👤 Konto</h3>
-             <p>Ohne Anmeldung kannst du Touren erstellen, Wetter abfragen und die 3D-Wetter-Simulation ansehen. Für <strong>Speichern</strong>, <strong>Push-Benachrichtigungen</strong> und den <strong>GPX-Planer</strong> ist ein kostenloses Konto nötig (schützt das gemeinsame Kontingent des Wegfinde-Dienstes). Registrieren verknüpft deine bisherige Sitzung mit dem Konto - bereits gespeicherte Touren bleiben erhalten. Über "Passwort vergessen?" kannst du dir eine Zurücksetzen-E-Mail schicken lassen. "Konto & alle Daten löschen" entfernt unwiderruflich alle Touren und dein Konto (Passwort-Bestätigung nötig).</p>
+             <p>Ohne Anmeldung kannst du Touren erstellen, Wetter abfragen und die 3D-Wetter-Simulation ansehen. Für <strong>Speichern</strong>, <strong>Push-Benachrichtigungen</strong> und den <strong>GPX-Planer</strong> ist ein kostenloses Konto nötig (schützt das gemeinsame Kontingent des Wegfinde-Dienstes). Registrieren verknüpft deine bisherige Sitzung mit dem Konto - bereits gespeicherte Touren bleiben erhalten. Über "Passwort vergessen?" kannst du dir eine Zurücksetzen-E-Mail schicken lassen. "Konto & alle Daten löschen" entfernt unwiderruflich alle Touren und dein Konto (Passwort-Bestätigung nötig); falls du zuvor Feedback mit Antwortwunsch gesendet hast, bleibt die Nachricht selbst erhalten, aber die verlinkte E-Mail-Adresse wird dabei ebenfalls entfernt.</p>
          </div>
          <div class="help-topic">
              <h3>📍 Start / Talort</h3>
@@ -1143,7 +1149,7 @@
          </div>
          <div class="help-topic">
              <h3>💬 Feedback</h3>
-             <p>Fehler melden, Ideen vorschlagen oder einfach Rückmeldung geben (Symbol oben rechts) - landet direkt beim Entwickler, ganz ohne Konto nötig.</p>
+             <p>Fehler melden, Ideen vorschlagen oder einfach Rückmeldung geben (Symbol oben rechts) - landet direkt beim Entwickler, ganz ohne Konto nötig. Mit "Ich möchte eine Antwort erhalten" kannst du optional eine E-Mail-Adresse hinterlegen (bei angemeldetem Konto wird automatisch deine Konto-E-Mail verwendet); ohne dieses Häkchen bleibt dein Feedback komplett anonym.</p>
          </div>
      </div>
  </div>
@@ -1665,6 +1671,16 @@ try {
 
  // Aktive Tour-Push-Anmeldung löschen, falls vorhanden
  await db.collection('tour_subscriptions').doc(user.uid).delete().catch(() => {});
+
+ // Eigene Feedback-Einträge NICHT löschen (bleiben als anonyme Rückmeldung
+ // erhalten), aber die verlinkte E-Mail-Adresse entfernen - dafür erlauben die
+ // Firestore-Regeln gezielt nur genau diese eine Änderung am eigenen Eintrag.
+ try {
+     const feedbackSnap = await db.collection('feedback').where('uid', '==', user.uid).get();
+     const feedbackBatch = db.batch();
+     feedbackSnap.forEach(doc => feedbackBatch.update(doc.ref, { email: null }));
+     await feedbackBatch.commit();
+ } catch (e) { /* Feedback-Anonymisierung ist unkritisch - Kontolöschung läuft trotzdem weiter */ }
 
  // Konto selbst löschen
  await user.delete();
@@ -4785,21 +4801,60 @@ function openFeedbackMenu() {
 document.getElementById('feedbackFormWrap').style.display = 'block';
 document.getElementById('feedbackThanks').style.display = 'none';
 document.getElementById('feedbackText').value = '';
+document.getElementById('feedbackWantsReply').checked = false;
+document.getElementById('feedbackReplyEmail').value = '';
+toggleFeedbackReplyEmail();
 document.getElementById('feedbackOverlay').classList.add('open');
 }
 function closeFeedbackMenu() {
 document.getElementById('feedbackOverlay').classList.remove('open');
 }
+// Zeigt bei "Ich möchte eine Antwort erhalten" entweder ein E-Mail-Feld (anonyme
+// Nutzer, die noch keine E-Mail hinterlegt haben) oder - bei angemeldetem Konto -
+// einen Hinweis, dass automatisch die Konto-E-Mail verwendet wird.
+function toggleFeedbackReplyEmail() {
+const wants = document.getElementById('feedbackWantsReply').checked;
+const emailInput = document.getElementById('feedbackReplyEmail');
+const note = document.getElementById('feedbackReplyEmailNote');
+if (!wants) {
+ emailInput.style.display = 'none';
+ note.style.display = 'none';
+ return;
+}
+if (isRealAccount && auth.currentUser) {
+ emailInput.style.display = 'none';
+ note.style.display = 'block';
+ note.innerText = '✅ Antwort geht an: ' + auth.currentUser.email;
+} else {
+ emailInput.style.display = 'block';
+ note.style.display = 'none';
+}
+}
 async function submitFeedback() {
 const text = document.getElementById('feedbackText').value.trim();
 if (!text) { customAlert('Bitte kurz beschreiben, worum es geht.'); return; }
 const category = document.getElementById('feedbackCategory').value;
+// E-Mail wird jetzt nur noch gespeichert, wenn ausdrücklich "Antwort erhalten"
+// angehakt wurde - nicht mehr automatisch nur weil man zufällig angemeldet ist.
+const wantsReply = document.getElementById('feedbackWantsReply').checked;
+let replyEmail = null;
+if (wantsReply) {
+ if (isRealAccount && auth.currentUser) {
+     replyEmail = auth.currentUser.email;
+ } else {
+     replyEmail = document.getElementById('feedbackReplyEmail').value.trim();
+     if (!replyEmail || !replyEmail.includes('@')) {
+         customAlert('Bitte eine gültige E-Mail-Adresse für die Antwort eingeben, oder das Häkchen entfernen.');
+         return;
+     }
+ }
+}
 try {
  await db.collection('feedback').add({
      text: text,
      category: category,
      uid: currentUserUid || null,
-     email: (isRealAccount && auth.currentUser) ? auth.currentUser.email : null,
+     email: replyEmail,
      createdAt: firebase.firestore.FieldValue.serverTimestamp()
  });
  document.getElementById('feedbackFormWrap').style.display = 'none';

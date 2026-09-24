@@ -13,6 +13,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <style>
 :root {
  --bg: #0a1220;
@@ -85,6 +86,22 @@ h1 { font-size: 1.3rem; margin: 8px 0 4px 0; }
 .fb-time { color: var(--text-light); font-size: 0.78rem; white-space: nowrap; }
 .fb-text { font-size: 0.92rem; line-height: 1.5; white-space: pre-line; }
 .fb-email { color: var(--text-light); font-size: 0.78rem; margin-top: 8px; }
+.fb-actions { display: flex; gap: 8px; margin-top: 10px; }
+.fb-actions button, .fb-actions a {
+ padding: 6px 12px; border-radius: 8px; border: none; font-size: 0.78rem; font-weight: 600;
+ cursor: pointer; text-decoration: none; display: inline-block;
+}
+.fb-reply-btn { background: rgba(93,232,176,0.15); color: var(--accent); }
+.fb-delete-btn { background: rgba(239,68,68,0.15); color: #fca5a5; }
+#pushStatusBox {
+ background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px;
+ padding: 12px 14px; font-size: 0.82rem; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+#pushStatusBox button {
+ padding: 8px 14px; border-radius: 8px; border: none; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+ background: var(--accent); color: #04140d; flex-shrink: 0;
+}
+#pushStatusBox button.deactivate { background: rgba(239,68,68,0.15); color: #fca5a5; }
 #emptyState { text-align: center; color: var(--text-light); padding: 40px 0; display: none; }
 #loadingState { text-align: center; color: var(--text-light); padding: 40px 0; }
 </style>
@@ -99,6 +116,8 @@ h1 { font-size: 1.3rem; margin: 8px 0 4px 0; }
  <div class="stat-box"><div class="stat-num" id="statQueries">–</div><div class="stat-label">Tour-Abfragen gesamt</div></div>
  <div class="stat-box"><div class="stat-num" id="statToday">–</div><div class="stat-label">Heute</div></div>
 </div>
+
+<div id="pushStatusBox" style="display:none;margin-bottom:20px"></div>
 
 <div id="loginBox">
  <div style="color:var(--text-light);font-size:0.85rem">Mit deinem App-Konto anmelden</div>
@@ -177,7 +196,60 @@ document.getElementById('appBox').style.display = 'block';
 document.getElementById('statsRow').style.display = 'flex';
 await loadFeedback();
 await loadStats();
+await renderPushStatus();
 });
+
+// Push-Benachrichtigungen bei neuem Feedback: nutzt dieselbe Firebase-Cloud-
+// Messaging-Infrastruktur und denselben Service Worker wie die Haupt-App (gleicher
+// Ursprung, funktioniert dadurch unverändert). Der Token wird in einem eigenen,
+// nur für den Admin lesbar/schreibbar Dokument gespeichert - das Backend
+// (check_weather.py) prüft periodisch auf neues Feedback und sendet bei einem
+// Treffer eine Push-Nachricht an genau diesen Token.
+const VAPID_KEY = "BM1lhomK1in9e4w6Th_On3H8PLxO2nwXeAjSci1y8Y8QIeAG23ntriAqCc2Qx0r4Pu_tITTSGFkA5xsu_KI2Qs4";
+let messaging = null;
+try { messaging = firebase.messaging(); } catch (e) { /* Browser unterstützt evtl. kein FCM */ }
+
+async function renderPushStatus() {
+const box = document.getElementById('pushStatusBox');
+box.style.display = 'flex';
+let hasToken = false;
+try {
+ const doc = await db.collection('system').doc('admin_push_token').get();
+ hasToken = doc.exists && !!doc.data().token;
+} catch (e) { /* noch kein Dokument - ist ok */ }
+
+if (hasToken && Notification.permission === 'granted') {
+ box.innerHTML = `<span>✅ Push-Benachrichtigungen für neues Feedback sind aktiv.</span><button class="deactivate" onclick="deactivatePush()">Deaktivieren</button>`;
+} else {
+ box.innerHTML = `<span>🔔 Noch keine Push-Benachrichtigungen für neues Feedback aktiv.</span><button onclick="activatePush()">Aktivieren</button>`;
+}
+}
+
+async function activatePush() {
+if (!messaging) { alert('Push-Benachrichtigungen werden von diesem Browser nicht unterstützt.'); return; }
+try {
+ const permission = await Notification.requestPermission();
+ if (permission !== 'granted') { alert('Ohne Erlaubnis für Benachrichtigungen kann das nicht aktiviert werden.'); return; }
+ const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+ const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+ await db.collection('system').doc('admin_push_token').set({
+     token: token,
+     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+ });
+ await renderPushStatus();
+} catch (e) {
+ alert('Fehler beim Aktivieren: ' + (e.message || e.code || 'Unbekannt'));
+}
+}
+
+async function deactivatePush() {
+try {
+ await db.collection('system').doc('admin_push_token').delete();
+ await renderPushStatus();
+} catch (e) {
+ alert('Fehler beim Deaktivieren: ' + (e.message || e.code || 'Unbekannt'));
+}
+}
 
 async function loadStats() {
 try {
@@ -233,6 +305,8 @@ list.innerHTML = filtered.map(f => {
      : '–';
  const cat = f.category || 'Sonstiges';
  const emailLine = f.email ? `<div class="fb-email">✉️ ${escapeHtml(f.email)}</div>` : '';
+ const mailtoHref = f.email ? `mailto:${encodeURIComponent(f.email)}?subject=${encodeURIComponent('Re: Dein Feedback zur Bergtouren Wetter Ampel')}&body=${encodeURIComponent('Hallo,\n\nvielen Dank für dein Feedback:\n"' + f.text + '"\n\n')}` : '';
+ const replyBtn = f.email ? `<a href="${mailtoHref}" class="fb-reply-btn">↩️ Antworten</a>` : '';
  return `<div class="fb-card">
      <div class="fb-head">
          <span class="fb-cat ${escapeHtml(cat)}">${escapeHtml(cat)}</span>
@@ -240,6 +314,10 @@ list.innerHTML = filtered.map(f => {
      </div>
      <div class="fb-text">${escapeHtml(f.text || '')}</div>
      ${emailLine}
+     <div class="fb-actions">
+         ${replyBtn}
+         <button class="fb-delete-btn" onclick="deleteFeedback('${f.id}')">🗑️ Löschen</button>
+     </div>
  </div>`;
 }).join('');
 }
@@ -248,6 +326,17 @@ function escapeHtml(str) {
 const div = document.createElement('div');
 div.innerText = str;
 return div.innerHTML;
+}
+
+async function deleteFeedback(id) {
+if (!confirm('Diesen Feedback-Eintrag wirklich unwiderruflich löschen?')) return;
+try {
+ await db.collection('feedback').doc(id).delete();
+ allFeedback = allFeedback.filter(f => f.id !== id);
+ renderFeedback();
+} catch (e) {
+ alert('Fehler beim Löschen: ' + (e.message || e.code || 'Unbekannt'));
+}
 }
 </script>
 </body>

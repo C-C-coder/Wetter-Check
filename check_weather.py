@@ -2019,6 +2019,55 @@ def interpolate_position(start_lat, start_lon, peak_lat, peak_lon, progress):
             start_lon + (peak_lon - start_lon) * path_prog)
 
 
+def check_new_feedback():
+    """Prueft bei jedem Durchlauf (alle 15 Minuten, kein taeglicher Drossel wie beim
+    Anonym-Aufraeumen - die Abfrage ist leicht und Feedback soll zeitnah ankommen),
+    ob seit dem letzten Lauf neues Feedback eingegangen ist, und schickt dafuer eine
+    Push-Benachrichtigung an den Admin-Token (siehe feedback-admin.html, dort wird
+    der Token bei Aktivierung in system/admin_push_token gespeichert).
+    """
+    token_doc = db.collection('system').document('admin_push_token').get()
+    if not token_doc.exists or not token_doc.to_dict().get('token'):
+        return  # noch keine Push-Benachrichtigungen fuer Feedback aktiviert
+    token = token_doc.to_dict()['token']
+
+    state_ref = db.collection('system').document('feedback_check')
+    state_doc = state_ref.get()
+    now_utc = datetime.now(timezone.utc)
+    last_check = state_doc.to_dict().get('last_check') if state_doc.exists else None
+
+    query = db.collection('feedback')
+    if last_check:
+        query = query.where('createdAt', '>', last_check)
+    else:
+        # Allererster Lauf: nicht die gesamte bisherige Feedback-Historie auf einmal
+        # verschicken, sondern erst ab jetzt neue Eintraege melden.
+        state_ref.set({'last_check': now_utc})
+        return
+
+    new_docs = list(query.order_by('createdAt').stream())
+    if not new_docs:
+        return
+
+    for doc in new_docs:
+        data = doc.to_dict()
+        category = data.get('category', 'Feedback')
+        text = (data.get('text') or '')[:150]
+        try:
+            send_high_priority_push(
+                f"💬 Neues Feedback: {category}",
+                text,
+                token,
+                tag='feedback',
+                collapse=False,
+                click_url="./feedback-admin.html"
+            )
+        except Exception as e:
+            print(f"Fehler beim Senden der Feedback-Push-Benachrichtigung: {e}")
+
+    state_ref.set({'last_check': now_utc})
+
+
 def cleanup_old_anonymous_users():
     """Loescht anonyme Firebase-Auth-Konten, die aelter als 14 Tage sind und nie mit
     einem echten Anmeldeverfahren (E-Mail/Passwort) verknuepft wurden. Auf rein
@@ -2505,5 +2554,6 @@ if __name__ == "__main__":
     import sys
     if '--selftest' in sys.argv:
         sys.exit(0 if selftest() else 1)
+    check_new_feedback()
     cleanup_old_anonymous_users()
     check_all_tours()
