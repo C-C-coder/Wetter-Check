@@ -373,23 +373,59 @@ def wind_chill(temp_c, wind_kmh):
     return 13.12 + 0.6215 * temp_c - 11.37 * v + 0.3965 * temp_c * v
 
 
+def elevation_risk_factor(elevation):
+    """1:1 wie elevationRiskFactor() in der App: <=1200m Faktor 1.0, bis 2800m linear
+    steigend auf 1.4, darüber gedeckelt. Ohne bekannte Höhe 1.0."""
+    try:
+        e = float(elevation)
+    except (TypeError, ValueError):
+        return 1.0
+    if not math.isfinite(e):
+        return 1.0
+    t = max(0.0, min(1.0, (e - 1200) / (2800 - 1200)))
+    return 1.0 + 0.4 * t
+
+
+def visibility_thresholds(tour_types):
+    """1:1 wie visibilityThresholds() in der App: abseits markierter Wege (Grat,
+    Fels, Hochtour, Schitour) zählt Sicht viel früher."""
+    if any(t in ('grat', 'klettern', 'hochtour', 'ski') for t in tour_types):
+        return 1000, 200
+    return 200, 80
+
+
 def score_risk_advanced(rain, snow_cm, gust, cape, code, prob, temp, vis=0,
-                        tour_types=None, wet_rock=False, is_peak=False):
+                        tour_types=None, wet_rock=False, is_peak=False,
+                        wind=None, elevation=None, exposure=''):
+    """ANGLEICHUNG AN DIE APP: exakt dieselbe Punktelogik wie evaluateZoneRisk() in
+    index.html - Höhenfaktor, manuelle Exposition, tourenartabhängige Sicht-
+    schwellen, Regen ab 0,2 mm, Windchill aus mittlerem Wind. Vorher rechnete das
+    Backend mit eigenen (teils deutlich abweichenden) Werten, sodass Vorabend-
+    Briefing/Push und Ampel in der App sich widersprechen konnten.
+    Zusätzlich werden Gründe (Texte für die Push-Meldung) mitgeliefert.
+    Neue Parameter sind optional - ohne Angabe verhält sich alles wie in der App
+    ohne bekannte Höhe/Exposition."""
     if tour_types is None:
         tour_types = []
 
-    s = 0
+    s = 0.0
     reasons = []
 
     is_exposed = any(t in ['klettersteig', 'grat', 'hochtour', 'gletscher', 'klettern'] for t in tour_types)
     is_klettersteig_or_climb = any(t in ['klettersteig', 'klettern'] for t in tour_types)
     is_hochtour_or_glacier = any(t in ['hochtour', 'gletscher'] for t in tour_types)
 
+    has_manual_exposure = exposure in ('exponiert', 'geschuetzt')
+    exposure_bonus = 15 if exposure == 'exponiert' else (-15 if exposure == 'geschuetzt' else 0)
+    elev_factor = elevation_risk_factor(elevation)
+
     is_thunder = code in [95, 96, 99] or (cape >= 1000 and prob >= 30)
     if is_thunder and is_klettersteig_or_climb:
         return 100, ['Gewitter am Klettersteig/Fels (Drahtseile leiten Blitzstrom)']
     elif is_thunder:
-        s += 70
+        t = 70.0
+        t += exposure_bonus if has_manual_exposure else t * (elev_factor - 1)
+        s += t
         reasons.append('Gewittergefahr')
 
     if rain >= 2.0 and (is_klettersteig_or_climb or is_hochtour_or_glacier):
@@ -400,15 +436,25 @@ def score_risk_advanced(rain, snow_cm, gust, cape, code, prob, temp, vis=0,
         reasons.append('Feuchter Fels in exponierter Lage (Rutschgefahr)' if is_peak
                        else 'Fels durch Vorniederschlag noch nass/klamm')
 
+    # Physikalische Untergrenze wie in der App: ab 80 km/h mindestens "Mäßig"
+    # (Astbruch), ab 100 km/h mindestens "Hoch" (Baumsturz) - "geschützt" kann das
+    # nicht wegrechnen, nur exponierte Lagen verschärfen.
     wind_factor = 1.4 if is_exposed else 1.0
-    if gust >= 80:
-        s += int(55 * wind_factor)
-        reasons.append('Sturmböen')
+    if not has_manual_exposure:
+        wind_factor *= elev_factor
+    elif exposure == 'exponiert':
+        wind_factor *= 1.2
+    if gust >= 100:
+        s += 65 * max(1.0, wind_factor)
+        reasons.append('Orkanartige Böen (Baumsturzgefahr)')
+    elif gust >= 80:
+        s += 32 * max(1.0, wind_factor)
+        reasons.append('Sturmböen (Astbruchgefahr)')
     elif gust >= 60:
-        s += int(35 * wind_factor)
+        s += 15 * wind_factor
         reasons.append('Kräftige Böen')
     elif gust >= 45:
-        s += int(20 * wind_factor)
+        s += 8 * wind_factor
         reasons.append('Böen')
 
     if rain >= 4:
@@ -417,12 +463,14 @@ def score_risk_advanced(rain, snow_cm, gust, cape, code, prob, temp, vis=0,
     elif rain >= 1:
         s += 25
         reasons.append('Regen')
-    elif prob >= 60 and rain < 0.2:
+    elif rain >= 0.2:
+        s += 12
+        reasons.append('Leichter Regen')
+    elif prob >= 60:
         s += 15
         reasons.append('Hohe Schauerneigung')
 
-    # FIX: Open-Meteo liefert 'snowfall' in ZENTIMETERN. Die alte Schwelle "snow >= 2"
-    # wurde im Code wie Millimeter behandelt und lag dadurch faktisch nie richtig.
+    # Open-Meteo liefert 'snowfall' in ZENTIMETERN.
     if snow_cm >= 1.0:
         s += 35
         reasons.append('Kräftiger Schneefall')
@@ -430,27 +478,53 @@ def score_risk_advanced(rain, snow_cm, gust, cape, code, prob, temp, vis=0,
         s += 20
         reasons.append('Schneefall')
 
-    # FIX: Backend prüfte <= 0 Grad, die App <= 1 Grad. Angeglichen auf den
-    # sichereren Wert: Fels und Metall kühlen durch Abstrahlung unter die
-    # Lufttemperatur ab, Glatteis bildet sich daher schon bei leichten Plusgraden.
+    # Glatteis schon bei leichten Plusgraden (Fels/Metall kühlen durch Abstrahlung ab)
     if temp <= 1 and (rain > 0.05 or snow_cm > 0):
-        s += 35
+        s += 35 * elev_factor
         reasons.append('Frost & Vereisungsgefahr (Glatteis)')
 
-    if (0 < vis < 2000) or code in [45, 48]:
-        s += 25
-        reasons.append('Eingeschränkte Sicht (Nebel)')
+    vis_orange, vis_rot = visibility_thresholds(tour_types)
+    if 0 < vis < vis_rot:
+        s += 65
+        reasons.append(f'Sehr schlechte Sicht (unter {vis_rot} m)')
+    elif 0 < vis < vis_orange:
+        s += 35
+        reasons.append(f'Eingeschränkte Sicht (unter {vis_orange} m)')
+    elif code in [45, 48]:
+        s += 20
+        reasons.append('Nebel')
 
     if temp >= 30:
         s += 25
         reasons.append('Extreme Hitze (>30 Grad)')
-    if temp <= -10 and gust >= 30:
-        s += 25
-        gefuehlt = wind_chill(temp, gust)
-        reasons.append(f'Windchill {round(gefuehlt)} Grad gefühlt' if gefuehlt is not None
-                       else 'Gefährlicher Windchill')
 
-    return min(100, s), sorted(set(reasons))
+    # Windchill aus dem MITTLEREN Wind (dafür ist die Formel definiert); fehlt er,
+    # sicherheitshalber aus den Böen.
+    chill_wind = wind if (wind is not None and wind > 0) else gust
+    gefuehlt = wind_chill(temp, chill_wind)
+    if gefuehlt is not None and gefuehlt <= -5:
+        if gefuehlt <= -27:
+            s += 45 * elev_factor
+        elif gefuehlt <= -15:
+            s += 28 * elev_factor
+        else:
+            s += 14 * elev_factor
+        reasons.append(f'Windchill {round(gefuehlt)} Grad gefühlt')
+
+    # Math.round in JS rundet .5 immer auf - Python round() rundet auf gerade Zahl.
+    return min(100, int(math.floor(s + 0.5))), sorted(set(reasons))
+
+
+def wet_rock_from(precip_arr, idx, is_summer):
+    """1:1 wie in der App: Niederschlag >= 0,1 mm in der aktuellen oder einer der
+    drei vorherigen Stunden macht den Fels nass; im Sommer (Mai-Juli) trocknet er
+    schneller, dort zählen nur die aktuelle und die vorherige Stunde."""
+    for p in range(0, 4):
+        pre = idx - p
+        if pre >= 0 and safe_num(precip_arr, pre) >= 0.1:
+            if not is_summer or p <= 1:
+                return True
+    return False
 
 
 # ==============================================================================
@@ -1203,8 +1277,8 @@ def analyze_segments(segmente, now):
 
 
 def fetch_hourly_multi(punkte, date_str, end_date_str):
-    """Stundenwerte fuer mehrere Punkte in EINEM Request. Bei drei Abschnitten
-    spart das zwei Aufrufe gegenueber der Einzelabfrage."""
+    """Stundenwerte fuer mehrere Punkte in EINEM Request (mit Feinmodellen wie in
+    fetch_hourly)."""
     if not punkte:
         return []
     lats = ",".join(f"{p[0]:.5f}" for p in punkte)
@@ -1214,21 +1288,10 @@ def fetch_hourly_multi(punkte, date_str, end_date_str):
     hoehen = [p[2] for p in punkte]
     if any(h for h in hoehen):
         url += "&elevation=" + ",".join(str(int(h)) if h else "nan" for h in hoehen)
-    res = http_json(url, timeout=15)
-    if not res:
-        return []
-    liste = res if isinstance(res, list) else [res]
-    out = []
-    for eintrag in liste:
-        h = (eintrag or {}).get('hourly') or {}
-        for key in list(h.keys()):
-            if key.endswith('_best_match'):
-                h[key.replace('_best_match', '')] = h[key]
-        out.append(h)
-    return out
+    return _om_hourly_request(url, 15, [p[1] for p in punkte])
 
 
-def analyze_segment_hazards(segmente, now, end_dt, tour_types):
+def analyze_segment_hazards(segmente, now, end_dt, tour_types, exposure=''):
     """Je Abschnitt die Gefahrenlage bewerten - über die GESAMTE verbleibende
     Tourzeit, nicht nur im rechnerisch erwarteten Zeitfenster des Abschnitts.
 
@@ -1261,6 +1324,13 @@ def analyze_segment_hazards(segmente, now, end_dt, tour_types):
         von_ges.strftime('%Y-%m-%d'),
         (bis_ges + timedelta(hours=1)).strftime('%Y-%m-%d'))
 
+    is_summer = (5 <= now.month <= 7)
+    # C-LAEF je Abschnitt (gleiche höhenkorrigierte Verfeinerung wie in der App)
+    prefetch_claef([(m[0], m[1]) for m in mitten], now)
+    claef_seg = {}
+    for si, m in enumerate(mitten):
+        claef_seg[si] = load_claef(m[0], m[1], m[2], now)
+
     ergebnis = {}
     for si, seg in enumerate(segmente):
         if si >= len(hourlies):
@@ -1279,21 +1349,16 @@ def analyze_segment_hazards(segmente, now, end_dt, tour_types):
             if not (von_ges <= t_dt <= bis_ges + timedelta(minutes=30)):
                 continue
 
-            temp = safe_num(h.get('temperature_2m'), i)
-            rain = safe_num(h.get('precipitation'), i)
-            snow = safe_num(h.get('snowfall'), i)
-            gust = safe_num(h.get('wind_gusts_10m'), i)
-            cape = safe_num(h.get('cape'), i)
-            code = int(safe_num(h.get('weather_code'), i))
-            prob = safe_num(h.get('precipitation_probability'), i)
-            vis = safe_num(h.get('visibility'), i)
+            w = punkt_wetter(h, i, t_dt, claef_seg.get(si))
+            temp, rain, gust, vis = w['temp'], w['rain'], w['gust'], w['vis']
+            cape, code, prob = w['cape'], w['code'], w['prob']
             dew = safe_num(h.get('dew_point_2m'), i, temp - 3)
             wolken = safe_num(h.get('cloud_cover'), i)
 
-            nass = any(safe_num(h.get('precipitation'), i - p) > 0.1
-                       for p in range(1, 4) if i - p >= 0)
-            score, gruende = score_risk_advanced(rain, snow, gust, cape, code, prob, temp,
-                                                 vis, tour_types, nass, True)
+            # Gleiche Bewertung wie die App (Höhe des Abschnitts, Exposition,
+            # nasser Fels inkl. aktueller Stunde, Sommerregel)
+            nass = wet_rock_from(h.get('precipitation'), i, is_summer)
+            score, gruende = bewerte_punkt(w, tour_types, nass, True, seg.get('ele_max'), exposure)
 
             basis = None
             if seg.get('ele_max') is not None:
@@ -1436,7 +1501,8 @@ def build_segment_alert(segmente, niederschlag, gefahren, start_dt, duration_h,
 POST_WINDOW_HOURS = 3
 
 
-def check_post_window(lat, lon, end_dt, tour_types=None, peak_lat=None, peak_lon=None):
+def check_post_window(lat, lon, end_dt, tour_types=None, peak_lat=None, peak_lon=None,
+                      peak_alt=None, exposure=''):
     """Wie entwickelt sich das Wetter in den Stunden NACH dem geplanten Ende?
 
     Die eingetragene Tourdauer ist eine Schätzung, keine Zusage. Wer sich um zwei
@@ -1449,19 +1515,25 @@ def check_post_window(lat, lon, end_dt, tour_types=None, peak_lat=None, peak_lon
         tour_types = []
     try:
         bis_dt = end_dt + timedelta(hours=POST_WINDOW_HOURS)
+        is_summer = (5 <= end_dt.month <= 7)
         h = fetch_hourly(lat, lon,
                          end_dt.strftime('%Y-%m-%d'),
                          (bis_dt + timedelta(hours=1)).strftime('%Y-%m-%d'))
         times = h.get('time') or []
         if not times:
             return None
+        tal_elev = fetch_elevation(lat, lon)
 
         ph = {}
         if peak_lat and peak_lon:
             ph = fetch_hourly(peak_lat, peak_lon,
                               end_dt.strftime('%Y-%m-%d'),
-                              (bis_dt + timedelta(hours=1)).strftime('%Y-%m-%d'))
+                              (bis_dt + timedelta(hours=1)).strftime('%Y-%m-%d'),
+                              elevation=int(float(peak_alt)) if peak_alt else None)
         peak_idx = {t: i for i, t in enumerate(ph.get('time') or [])}
+        claef_tal = load_claef(lat, lon, tal_elev, end_dt)
+        claef_peak = load_claef(peak_lat, peak_lon, float(peak_alt) if peak_alt else None,
+                                end_dt) if ph else None
 
         for i, t_str in enumerate(times):
             try:
@@ -1471,24 +1543,14 @@ def check_post_window(lat, lon, end_dt, tour_types=None, peak_lat=None, peak_lon
             if not (end_dt < t_dt <= bis_dt):
                 continue
 
-            def bewerte(quelle, idx):
-                nass = any(safe_num(quelle.get('precipitation'), idx - p) > 0.1
-                           for p in range(1, 4) if idx - p >= 0)
-                return score_risk_advanced(
-                    safe_num(quelle.get('precipitation'), idx),
-                    safe_num(quelle.get('snowfall'), idx),
-                    safe_num(quelle.get('wind_gusts_10m'), idx),
-                    safe_num(quelle.get('cape'), idx),
-                    int(safe_num(quelle.get('weather_code'), idx)),
-                    safe_num(quelle.get('precipitation_probability'), idx),
-                    safe_num(quelle.get('temperature_2m'), idx),
-                    safe_num(quelle.get('visibility'), idx),
-                    tour_types, nass, True)
-
-            score, gruende = bewerte(h, i)
+            score, gruende = bewerte_punkt(
+                punkt_wetter(h, i, t_dt, claef_tal), tour_types,
+                wet_rock_from(h.get('precipitation'), i, is_summer), False, tal_elev, exposure)
             p_idx = peak_idx.get(t_str)
             if p_idx is not None:
-                p_score, p_gruende = bewerte(ph, p_idx)
+                p_score, p_gruende = bewerte_punkt(
+                    punkt_wetter(ph, p_idx, t_dt, claef_peak), tour_types,
+                    wet_rock_from(ph.get('precipitation'), p_idx, is_summer), True, peak_alt, exposure)
                 if p_score > score:
                     score, gruende = p_score, p_gruende
 
@@ -1626,26 +1688,311 @@ def build_multi_location_update(tour):
     return "\n".join(msg_parts)
 
 
+# ==============================================================================
+#  C-LAEF AlpeAdria (GeoSphere nwp-v2-1h-1km) - dieselbe Verfeinerung wie in der App
+# ------------------------------------------------------------------------------
+#  Für die ersten ca. 60 Stunden ersetzt/verfeinert die App die Werte des Modell-Mix
+#  durch das 1km-Modell C-LAEF (höhenkorrigiert, siehe claefBlend in index.html).
+#  Damit Briefing/Push zur Ampel passen, macht das Backend jetzt genau dasselbe.
+#  Jeder Fehler -> None, es bleibt dann einfach bei Open-Meteo.
+# ==============================================================================
+CLAEF_RANGE_H = 60
+CLAEF_MAX_AGE_H = 12   # älterer Modelllauf wird ignoriert
+
+
+def _claef_key(lat, lon):
+    try:
+        return (round(float(lat), 4), round(float(lon), 4))
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_claef_maps(punkte):
+    """C-LAEF für MEHRERE Punkte in EINER Anfrage (GeoSphere erlaubt nur 240
+    Abfragen pro Stunde - pro Abschnitt einzeln abzufragen würde das bei mehreren
+    Touren schnell sprengen). Rückgabe: Liste (gleiche Reihenfolge) mit
+    {'hours', 'grid_lat', 'grid_lon'} oder None je Punkt."""
+    if not punkte:
+        return []
+    try:
+        url = (f"{GEOSPHERE_BASE}/timeseries/forecast/nwp-v2-1h-1km?"
+               + "&".join(f"lat_lon={float(la):.5f},{float(lo):.5f}" for la, lo in punkte)
+               + "&parameters=2t,10u,10v,10fg,tp,cape&output_format=geojson")
+    except (TypeError, ValueError):
+        return [None] * len(punkte)
+    payload = http_json(url, timeout=15, retries=1)
+    feats = (payload or {}).get('features') or []
+    if len(feats) != len(punkte):
+        return [None] * len(punkte)
+
+    # Altersprüfung (wie in der App): Ein hängender C-LAEF-Lauf (Lieferstörung bei
+    # GeoSphere) ist ungenauer als der frische Open-Meteo-Wert -> dann ignorieren.
+    ref = None
+    for key in ('reference_time', 'referenceTime'):
+        ref = parse_iso_utc(payload.get(key)) if payload.get(key) else None
+        if ref:
+            break
+    if ref is None:
+        ts0 = gs_timestamps(payload, feats[0])
+        ref = parse_iso_utc(ts0[0]) if ts0 else None
+    if ref and (datetime.now(timezone.utc) - ref).total_seconds() > CLAEF_MAX_AGE_H * 3600:
+        print(f"    C-LAEF-Lauf veraltet ({ref:%d.%m. %H:%M} UTC) - Open-Meteo wird verwendet")
+        return [None] * len(punkte)
+
+    def num(arr, i):
+        try:
+            x = arr[i]
+            return None if x is None else float(x)
+        except (IndexError, TypeError, ValueError):
+            return None
+
+    out = []
+    for (la, lo), f in zip(punkte, feats):
+        times = gs_timestamps(payload, f)
+        t2, u, v = gs_values(f, '2t'), gs_values(f, '10u'), gs_values(f, '10v')
+        fg, tp, cape = gs_values(f, '10fg'), gs_values(f, 'tp'), gs_values(f, 'cape')
+        stunden = {}
+        for i, ts in enumerate(times):
+            dt = parse_iso_utc(ts)
+            if not dt:
+                continue
+            uu, vv, gg = num(u, i), num(v, i), num(fg, i)
+            e = {
+                'temp': num(t2, i),
+                'wind': math.sqrt(uu * uu + vv * vv) * 3.6 if uu is not None and vv is not None else None,
+                'gust': gg * 3.6 if gg is not None else None,
+                'rain': num(tp, i),
+                'cape': num(cape, i),
+            }
+            if e['temp'] is not None or e['wind'] is not None:
+                stunden[int(dt.timestamp() // 3600)] = e
+        if not stunden:
+            out.append(None)
+            continue
+        g_lat, g_lon = gs_point(f)
+        out.append({'hours': stunden,
+                    'grid_lat': g_lat if g_lat is not None else float(la),
+                    'grid_lon': g_lon if g_lon is not None else float(lo)})
+    return out
+
+
+def claef_cell_elevations(cmaps):
+    """Mittlere Geländehöhe je C-LAEF-Zelle (3x3 Punkte im 90m-Höhenmodell um den
+    tatsächlichen Gitterpunkt) - wie claefCellElevations() in der App. Bis zu 11
+    Zellen pro Anfrage (Open-Meteo: max. 100 Koordinaten)."""
+    ergebnis = [None] * len(cmaps)
+    idx = [i for i, c in enumerate(cmaps) if c]
+    for start in range(0, len(idx), 11):
+        teil = idx[start:start + 11]
+        lats, lons = [], []
+        for i in teil:
+            c = cmaps[i]
+            d_lat = 0.003
+            d_lon = 0.003 / max(0.2, math.cos(math.radians(c['grid_lat'])))
+            for a in (-1, 0, 1):
+                for b in (-1, 0, 1):
+                    lats.append(f"{c['grid_lat'] + a * d_lat:.5f}")
+                    lons.append(f"{c['grid_lon'] + b * d_lon:.5f}")
+        res = http_json("https://api.open-meteo.com/v1/elevation?latitude=" + ",".join(lats)
+                        + "&longitude=" + ",".join(lons), timeout=8, retries=1)
+        werte = (res or {}).get('elevation')
+        if not isinstance(werte, list) or len(werte) != len(lats):
+            continue
+        for k, i in enumerate(teil):
+            zelle = [float(x) for x in werte[k * 9:(k + 1) * 9] if isinstance(x, (int, float))]
+            ergebnis[i] = sum(zelle) / len(zelle) if len(zelle) >= 5 else None
+    return ergebnis
+
+
+def claef_blend(base, claef, cell_elev, target_elev):
+    """1:1 wie claefBlend() in der App: Temperatur von der Zellhöhe auf die echte
+    Punkthöhe umgerechnet (0,65 °C/100 m, nur bei bekannter Zellhöhe und max. 600 m
+    Abweichung), Wind/Böen bei passender Zellhöhe (±150 m) von C-LAEF, sonst der
+    höhere Wert, Niederschlag/CAPE von C-LAEF."""
+    out = dict(base)
+    if not claef:
+        return out
+    try:
+        known = cell_elev is not None and target_elev is not None and float(target_elev) > 0
+    except (TypeError, ValueError):
+        known = False
+    diff = (cell_elev - float(target_elev)) if known else None
+    if claef.get('temp') is not None and known and abs(diff) <= 600:
+        out['temp'] = claef['temp'] + 0.0065 * diff
+    passt = known and abs(diff) <= 150
+    if claef.get('wind') is not None:
+        out['wind'] = claef['wind'] if passt else max(base.get('wind') or 0, claef['wind'])
+    if claef.get('gust') is not None:
+        out['gust'] = claef['gust'] if passt else max(base.get('gust') or 0, claef['gust'])
+    if claef.get('rain') is not None:
+        out['rain'] = claef['rain']
+    if claef.get('cape') is not None:
+        out['cape'] = claef['cape']
+    return out
+
+
+def prefetch_claef(punkte, von_dt):
+    """Lädt alle noch nicht gecachten Punkte gemeinsam (1 GeoSphere- + 1 Höhen-
+    Anfrage) in CLAEF_CACHE. Nur, wenn der Zeitraum im 60-Stunden-Fenster liegt."""
+    if von_dt is None or (von_dt - datetime.now(timezone.utc)).total_seconds() > CLAEF_RANGE_H * 3600:
+        return
+    fehlend = []
+    for la, lo in punkte:
+        k = _claef_key(la, lo)
+        if k and k not in CLAEF_CACHE and k not in [_claef_key(*f) for f in fehlend]:
+            fehlend.append((la, lo))
+    if not fehlend:
+        return
+    maps = fetch_claef_maps(fehlend)
+    hoehen = claef_cell_elevations(maps)
+    for (la, lo), cm, ce in zip(fehlend, maps, hoehen):
+        if cm:
+            cm['cell_elev'] = ce
+        CLAEF_CACHE[_claef_key(la, lo)] = cm
+
+
+def load_claef(lat, lon, target_elev, von_dt):
+    """C-LAEF-Daten für einen Punkt (aus dem Cache, sonst einzeln nachgeladen)."""
+    k = _claef_key(lat, lon)
+    if k is None:
+        return None
+    if k not in CLAEF_CACHE:
+        prefetch_claef([(lat, lon)], von_dt)
+    cm = CLAEF_CACHE.get(k)
+    if not cm:
+        return None
+    return {'hours': cm['hours'], 'cell_elev': cm.get('cell_elev'), 'target_elev': target_elev}
+
+
+CLAEF_CACHE = {}
+
+
+def punkt_wetter(h, i, t_dt, claef=None):
+    """Alle Werte einer Stunde aus einer Open-Meteo-Stundenreihe, auf Wunsch mit
+    C-LAEF verfeinert. Fehlende Werte -> 0 (wie in der App)."""
+    w = {
+        'temp': safe_num(h.get('temperature_2m'), i),
+        'rain': safe_num(h.get('precipitation'), i),
+        'snow': safe_num(h.get('snowfall'), i),
+        'wind': safe_num(h.get('wind_speed_10m'), i),
+        'gust': safe_num(h.get('wind_gusts_10m'), i),
+        'cape': safe_num(h.get('cape'), i),
+        'code': int(safe_num(h.get('weather_code'), i)),
+        'prob': safe_num(h.get('precipitation_probability'), i),
+        'vis': safe_num(h.get('visibility'), i),
+    }
+    if claef and t_dt is not None:
+        c = claef['hours'].get(int(t_dt.astimezone(timezone.utc).timestamp() // 3600))
+        if c:
+            w.update(claef_blend(w, c, claef.get('cell_elev'), claef.get('target_elev')))
+    return w
+
+
+def bewerte_punkt(w, tour_types, wet_rock, is_peak, elevation, exposure):
+    return score_risk_advanced(w['rain'], w['snow'], w['gust'], w['cape'], w['code'],
+                               w['prob'], w['temp'], w['vis'], tour_types, wet_rock,
+                               is_peak, wind=w['wind'], elevation=elevation,
+                               exposure=exposure)
+
+
+# Feinmodelle - 1:1 wie in der App (refineWithHighResModels in index.html):
+# best_match nimmt für die Alpen ICON-D2 nur bis 48 h, danach ICON-EU (7 km). Pro
+# Stunde wird das höchstauflösende Modell mit Wert verwendet; ohne Wert bleibt
+# best_match. Lehnt Open-Meteo die Modellliste ab, wird ohne Modelle neu gefragt.
+FEIN_MODELS = "best_match,icon_d2,meteoswiss_icon_ch1,meteoswiss_icon_ch2,arome_france,arome_france_hd"
+FEINMODELL_GRUPPEN = [
+    ['temperature_2m', 'apparent_temperature', 'dew_point_2m'],
+    ['wind_gusts_10m', 'wind_speed_10m', 'wind_direction_10m'],
+    ['precipitation', 'snowfall'],
+    ['cape'],
+]
+
+
+def feinmodell_reihenfolge(lon):
+    try:
+        west = float(lon) < 7.5
+    except (TypeError, ValueError):
+        west = False
+    if west:
+        return ['arome_france_hd', 'meteoswiss_icon_ch1', 'arome_france', 'icon_d2', 'meteoswiss_icon_ch2']
+    return ['meteoswiss_icon_ch1', 'icon_d2', 'meteoswiss_icon_ch2']
+
+
+def _ok(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def refine_with_high_res_models(h, lon):
+    times = h.get('time') or []
+    if not times:
+        return h
+    reihenfolge = feinmodell_reihenfolge(lon)
+    for gruppe in FEINMODELL_GRUPPEN:
+        leit = gruppe[0]
+        for feld in gruppe:
+            if isinstance(h.get(feld), list):
+                h[feld] = list(h[feld])  # nicht die _best_match-Reihe verändern
+        for i in range(len(times)):
+            modell = None
+            for m in reihenfolge:
+                reihe = h.get(f"{leit}_{m}")
+                if isinstance(reihe, list) and i < len(reihe) and _ok(reihe[i]):
+                    modell = m
+                    break
+            if not modell:
+                continue
+            for feld in gruppe:
+                reihe = h.get(f"{feld}_{modell}")
+                if isinstance(reihe, list) and i < len(reihe) and _ok(reihe[i]):
+                    if not isinstance(h.get(feld), list):
+                        h[feld] = [None] * len(times)
+                    while len(h[feld]) < len(times):
+                        h[feld].append(None)
+                    h[feld][i] = reihe[i]
+    return h
+
+
+def _om_hourly_request(url, timeout, lons):
+    """Open-Meteo mit Feinmodellen abfragen, bei Fehler ohne Modellliste (best_match).
+    Gibt eine Liste von hourly-Dicts zurück (je Punkt eins)."""
+    res = http_json(url + "&models=" + FEIN_MODELS, timeout=timeout)
+    mit_modellen = res is not None
+    if not res:
+        res = http_json(url, timeout=timeout)
+    if not res:
+        return []
+    liste = res if isinstance(res, list) else [res]
+    out = []
+    for k, eintrag in enumerate(liste):
+        h = (eintrag or {}).get('hourly') or {}
+        for key in list(h.keys()):
+            if key.endswith('_best_match'):
+                h[key.replace('_best_match', '')] = h[key]
+        if mit_modellen:
+            refine_with_high_res_models(h, lons[k] if k < len(lons) else None)
+        out.append(h)
+    return out
+
+
 def fetch_hourly(lat, lon, date_str, end_date_str, elevation=None):
-    """FIX: Es wird nur noch 'best_match' abgefragt. Vorher wurden 6 Modelle geladen, aber
-    ausschliesslich best_match ausgewertet - das kostete unnötig Quota und erzeugte
-    unterschiedlich lange Arrays."""
+    """Stundenwerte eines Punkts - best_match, pro Stunde mit dem feinsten
+    verfügbaren Alpenmodell verfeinert (gleiche Logik wie die App)."""
     url = (f"{OPEN_METEO_BASE}?latitude={lat}&longitude={lon}&hourly={HOURLY_VARS}"
            f"&start_date={date_str}&end_date={end_date_str}&timezone=auto&wind_speed_unit=kmh")
     if elevation:
         url += f"&elevation={elevation}"
-    res = http_json(url, timeout=12)
-    if not res:
-        return {}
-    h = res.get('hourly') or {}
-    for key in list(h.keys()):
-        if key.endswith('_best_match'):
-            h[key.replace('_best_match', '')] = h[key]
-    return h
+    out = _om_hourly_request(url, 12, [lon])
+    return out[0] if out else {}
 
 
 # 9. Prognose-Trend mit Tal/Gipfel, Wet-Rock & fokussierten Risikogründen
-def check_forecast_trend(lat, lon, start_dt, duration, tour_types=None, peak_lat=None, peak_lon=None):
+def check_forecast_trend(lat, lon, start_dt, duration, tour_types=None, peak_lat=None, peak_lon=None,
+                         peak_alt=None, exposure=''):
+    """Bewertet das Tourfenster mit DERSELBEN Logik wie die Ampel in der App:
+    Tal (Höhe aus dem Höhenmodell) und Gipfel (mit der echten Gipfelhöhe an
+    Open-Meteo übergeben, wie in der App), Höhenfaktor, Exposition und - innerhalb
+    der ersten 60 Stunden - C-LAEF-Verfeinerung. Fällt eine Quelle aus, wird mit
+    dem Rest weitergerechnet (Gipfel ohne Daten -> nur Tal, ohne C-LAEF -> Open-Meteo)."""
     if tour_types is None:
         tour_types = []
     try:
@@ -1660,11 +2007,19 @@ def check_forecast_trend(lat, lon, start_dt, duration, tour_types=None, peak_lat
         times = h.get('time') or []
         if not times:
             return "unknown", "Trend konnte gerade nicht abgerufen werden."
+        tal_elev = fetch_elevation(lat, lon)
 
         ph = {}
         if peak_lat and peak_lon:
-            ph = fetch_hourly(peak_lat, peak_lon, date_str, end_date_str)
+            ph = fetch_hourly(peak_lat, peak_lon, date_str, end_date_str,
+                              elevation=int(float(peak_alt)) if peak_alt else None)
         peak_time_index = {t: i for i, t in enumerate(ph.get('time') or [])}
+
+        # C-LAEF nur für den Zeitraum, den das Modell abdeckt (Tal+Gipfel in 1 Anfrage)
+        prefetch_claef([(lat, lon)] + ([(peak_lat, peak_lon)] if ph else []), start_dt)
+        claef_tal = load_claef(lat, lon, tal_elev, start_dt)
+        claef_peak = load_claef(peak_lat, peak_lon, float(peak_alt) if peak_alt else None,
+                                start_dt) if ph else None
 
         max_risk = 0
         worst_reasons = []
@@ -1679,44 +2034,18 @@ def check_forecast_trend(lat, lon, start_dt, duration, tour_types=None, peak_lat
                 continue
             slots_evaluated += 1
 
-            temp = safe_num(h.get('temperature_2m'), i)
-            rain = safe_num(h.get('precipitation'), i)
-            snow = safe_num(h.get('snowfall'), i)      # cm
-            gust = safe_num(h.get('wind_gusts_10m'), i)
-            cape = safe_num(h.get('cape'), i)
-            code = int(safe_num(h.get('weather_code'), i))
-            prob = safe_num(h.get('precipitation_probability'), i)
-            vis = safe_num(h.get('visibility'), i)
-
-            base_wet_rock = False
-            for p in range(1, 4):
-                if i - p >= 0 and safe_num(h.get('precipitation'), i - p) > 0.1:
-                    if not is_summer or p == 1:
-                        base_wet_rock = True
-
-            slot_score, slot_reasons = score_risk_advanced(
-                rain, snow, gust, cape, code, prob, temp, vis, tour_types, base_wet_rock, False)
+            w = punkt_wetter(h, i, t_dt, claef_tal)
+            slot_score, slot_reasons = bewerte_punkt(
+                w, tour_types, wet_rock_from(h.get('precipitation'), i, is_summer),
+                False, tal_elev, exposure)
             slot_reasons = list(slot_reasons)
 
             p_idx = peak_time_index.get(t_str)
             if p_idx is not None:
-                p_wet_rock = False
-                for p_step in range(1, 4):
-                    if p_idx - p_step >= 0 and safe_num(ph.get('precipitation'), p_idx - p_step) > 0.1:
-                        if not is_summer or p_step == 1:
-                            p_wet_rock = True
-
-                p_score, p_reasons = score_risk_advanced(
-                    safe_num(ph.get('precipitation'), p_idx, rain),
-                    safe_num(ph.get('snowfall'), p_idx, snow),
-                    safe_num(ph.get('wind_gusts_10m'), p_idx, gust),
-                    safe_num(ph.get('cape'), p_idx, cape),
-                    int(safe_num(ph.get('weather_code'), p_idx, code)),
-                    safe_num(ph.get('precipitation_probability'), p_idx, prob),
-                    safe_num(ph.get('temperature_2m'), p_idx, temp),
-                    safe_num(ph.get('visibility'), p_idx, vis),
-                    tour_types, p_wet_rock, True)
-
+                pw = punkt_wetter(ph, p_idx, t_dt, claef_peak)
+                p_score, p_reasons = bewerte_punkt(
+                    pw, tour_types, wet_rock_from(ph.get('precipitation'), p_idx, is_summer),
+                    True, peak_alt, exposure)
                 if p_score > slot_score:
                     slot_score = p_score
                     slot_reasons = list(p_reasons)
@@ -2069,7 +2398,7 @@ def check_new_feedback():
 
 
 def cleanup_old_anonymous_users():
-    """Loescht anonyme Firebase-Auth-Konten, die aelter als 14 Tage sind und nie mit
+    """Loescht anonyme Firebase-Auth-Konten, die seit 14 Tagen inaktiv sind und nie mit
     einem echten Anmeldeverfahren (E-Mail/Passwort) verknuepft wurden. Auf rein
     anonymen Konten kann ohnehin nichts gespeichert werden (Speichern/Push/GPX-Planer
     verlangen alle ein echtes Konto) - sie sammeln sich sonst unbegrenzt und nutzlos
@@ -2112,8 +2441,17 @@ def cleanup_old_anonymous_users():
                 checked += 1
                 is_anonymous = len(user.provider_data) == 0  # kein Provider = rein anonym
                 if is_anonymous:
-                    created_ms = user.user_metadata.creation_timestamp
-                    if created_ms and created_ms < cutoff_ms:
+                    # FIX: Bisher zaehlte nur das Erstellungsdatum - auch ein anonymes
+                    # Konto, das gestern noch benutzt wurde, flog nach 14 Tagen raus.
+                    # Die Datenschutzerklaerung verspricht aber "nach 14 Tagen
+                    # INAKTIVITAET". Massgeblich ist jetzt die letzte Aktivitaet
+                    # (letzte Anmeldung bzw. Token-Erneuerung), Rueckfall Erstellung.
+                    meta = user.user_metadata
+                    zeitpunkte = [t for t in (meta.creation_timestamp,
+                                              getattr(meta, 'last_sign_in_timestamp', None),
+                                              getattr(meta, 'last_refresh_timestamp', None)) if t]
+                    last_active_ms = max(zeitpunkte) if zeitpunkte else None
+                    if last_active_ms and last_active_ms < cutoff_ms:
                         try:
                             auth.delete_user(user.uid)
                             deleted += 1
@@ -2158,6 +2496,14 @@ def check_all_tours():
             peak_lat = tour.get('peak_lat')
             peak_lon = tour.get('peak_lon')
             peak_alt = tour.get('peak_alt')
+            try:
+                peak_alt = float(peak_alt) if peak_alt not in (None, '') else None
+                if peak_alt is not None and not (0 < peak_alt < 5000):
+                    peak_alt = None
+            except (TypeError, ValueError):
+                peak_alt = None
+            # Exposition aus der App (''/'exponiert'/'geschuetzt') - gleiche Bewertung wie die Ampel
+            exposure = tour.get('exposure') or ''
             start_lat = tour.get('start_lat') or lat
             start_lon = tour.get('start_lon') or lon
 
@@ -2200,6 +2546,13 @@ def check_all_tours():
                         print(f"    Abschluss fehlgeschlagen: {fe}")
                 continue
 
+            # Wie in der App: ohne gespeicherte Gipfelhöhe die Geländehöhe des Punkts
+            # verwenden - sonst entfiele am Gipfel der Höhenaufschlag der Bewertung.
+            if peak_alt is None and peak_lat and peak_lon:
+                peak_alt = fetch_elevation(peak_lat, peak_lon)
+                if peak_alt is not None and peak_alt <= 0:
+                    peak_alt = None
+
             if now < start_dt:
                 # ---- Vor dem Start: Vorabend- und Kurz-davor-Briefing -------
                 stat['geplant'] += 1
@@ -2221,7 +2574,8 @@ def check_all_tours():
                     continue
 
                 trend_status, trend_msg = check_forecast_trend(
-                    lat, lon, start_dt, duration, tour_types, peak_lat, peak_lon)
+                    lat, lon, start_dt, duration, tour_types, peak_lat, peak_lon,
+                                                                  peak_alt=peak_alt, exposure=exposure)
 
                 # Liegen gerade keine Daten vor, waere "Bedingungen sehen unklar aus"
                 # keine Information - und wuerde den Einmal-Schuss verbrauchen. Dann
@@ -2234,7 +2588,8 @@ def check_all_tours():
                 # Stunden danach ansehen - wer laenger braucht, ist genau dann
                 # unterwegs, wenn die Bewertung sonst schon aufgehoert hat.
                 nachlauf = format_post_window(
-                    check_post_window(lat, lon, end_dt, tour_types, peak_lat, peak_lon),
+                    check_post_window(lat, lon, end_dt, tour_types, peak_lat, peak_lon,
+                                                                  peak_alt=peak_alt, exposure=exposure),
                     end_dt)
                 if nachlauf:
                     print(f"    Nachlauf: {nachlauf}")
@@ -2327,7 +2682,7 @@ def check_all_tours():
             if segmente:
                 try:
                     seg_regen = analyze_segments(segmente, now)
-                    seg_gefahren = analyze_segment_hazards(segmente, now, end_dt, tour_types)
+                    seg_gefahren = analyze_segment_hazards(segmente, now, end_dt, tour_types, exposure)
                     seg_alert = build_segment_alert(segmente, seg_regen, seg_gefahren,
                                                     start_dt, duration, now_utc, tour_types)
                 except Exception as e:
@@ -2439,13 +2794,25 @@ def check_all_tours():
                         alert_title = f"Niederschlag im Anmarsch – {time_txt} [{local_time_str}]"
                         alert_body = f"{incoming}{dir_txt}, aktuell ca. {dist_km} km entfernt{speed_txt}."
             else:
-                if last_state in ['danger', 'worsening', 'early_warning', 'update_mid',
+                # FIX: 'critical' (rote Abschnittswarnung: Gewitter, Sturm, Vereisung)
+                # fehlte hier - nach einer roten Warnung kam deshalb nie eine Entwarnung.
+                # ('danger'/'worsening' sind Altnamen, bleiben fuer alte Dokumente.)
+                if last_state in ['critical', 'danger', 'worsening', 'early_warning', 'update_mid',
                                   'update_close', 'arrival']:
                     current_stage = "improving"
                     alert_key = "improving"
                     trend_status, _ = check_forecast_trend(lat, lon, start_dt, duration,
-                                                          tour_types, peak_lat, peak_lon)
-                    if trend_status == "stable":
+                                                          tour_types, peak_lat, peak_lon,
+                                                                  peak_alt=peak_alt, exposure=exposure)
+                    if last_state == 'critical':
+                        # Rote Lage war nicht zwingend Regen (auch Gewitter/Sturm/Vereisung)
+                        if trend_status == "stable":
+                            alert_title = f"Entwarnung: Lage hat sich beruhigt [{local_time_str}]"
+                            alert_body = "Die zuvor gemeldete Gefahr auf deiner Route ist laut aktueller Prognose vorbei."
+                        else:
+                            alert_title = f"Rote Lage vorbei – weiter unbeständig [{local_time_str}]"
+                            alert_body = "Die akute Gefahr auf deiner Route ist vorbei, das Wetter bleibt laut Prognose unbeständig."
+                    elif trend_status == "stable":
                         alert_title = f"Niederschlag löst sich auf [{local_time_str}]"
                         alert_body = "Der Regen stoppt und die Prognose zeigt keinen weiteren Niederschlag."
                     else:
@@ -2506,7 +2873,8 @@ def check_all_tours():
                         'peak_lat': peak_lat, 'peak_lon': peak_lon
                     })
                     trend_status, trend_msg = check_forecast_trend(lat, lon, start_dt, duration,
-                                                                  tour_types, peak_lat, peak_lon)
+                                                                  tour_types, peak_lat, peak_lon,
+                                                                  peak_alt=peak_alt, exposure=exposure)
                     hourly_title = f"Wetter-Update [{local_time_str}]"
                     hourly_body = "\n\n".join([p for p in [multi_loc_status, trend_msg] if p])
 
@@ -2554,12 +2922,18 @@ if __name__ == "__main__":
     import sys
     if '--selftest' in sys.argv:
         sys.exit(0 if selftest() else 1)
-    # FIX: Ein Fehler in dieser (nicht sicherheitskritischen) Zusatzfunktion durfte
-    # bisher den kompletten restlichen Durchlauf mitreissen - inklusive der echten
-    # Tour-Wetterwarnungen, die weitaus wichtiger sind. Jetzt einzeln abgesichert.
+    # FIX: Die Tour-Warnungen sind der eigentliche Zweck dieses Laufs - sie laufen
+    # jetzt ZUERST. Vorher konnte ein Fehler in cleanup_old_anonymous_users() (z.B.
+    # ein kurzer Firestore-Aussetzer beim Lesen von system/anon_cleanup - dieser Teil
+    # lag ausserhalb des dortigen try-Blocks) den ganzen Lauf beenden, BEVOR
+    # check_all_tours() ueberhaupt drankam. Die Zusatzfunktionen sind jetzt alle
+    # einzeln abgesichert.
+    check_all_tours()
     try:
         check_new_feedback()
     except Exception as e:
-        print(f"Fehler bei check_new_feedback (unkritisch, restlicher Durchlauf läuft weiter): {e}")
-    cleanup_old_anonymous_users()
-    check_all_tours()
+        print(f"Fehler bei check_new_feedback (unkritisch): {e}")
+    try:
+        cleanup_old_anonymous_users()
+    except Exception as e:
+        print(f"Fehler bei cleanup_old_anonymous_users (unkritisch): {e}")

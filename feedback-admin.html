@@ -261,7 +261,7 @@ try {
  document.getElementById('statQueries').innerText = queriesDoc.exists ? (queriesDoc.data().total || 0) : 0;
 } catch (e) { document.getElementById('statQueries').innerText = '–'; }
 try {
- const today = new Date().toISOString().slice(0, 10);
+ const today = new Date().toLocaleDateString('sv-SE'); // lokales Datum, gleich wie in index.html
  const todayDoc = await db.collection('dailyStats').doc(today).get();
  document.getElementById('statToday').innerText = todayDoc.exists ? (todayDoc.data().count || 0) : 0;
 } catch (e) { document.getElementById('statToday').innerText = '–'; }

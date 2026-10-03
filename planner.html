@@ -959,7 +959,13 @@ document.getElementById('gpx-file-input').addEventListener('change', (event) => 
  reader.onload = async (e) => {
      try {
          const xmlDoc = new DOMParser().parseFromString(e.target.result, "text/xml");
-         const pts = xmlDoc.querySelectorAll("trkpt, wpt");
+         // FIX: "trkpt, wpt" mischte Wegpunkte (z.B. Hütte, Parkplatz, Gipfelmarker -
+         // stehen in GPX-Dateien meist VOR dem Track) unter die Trackpunkte. Start, Gipfel
+         // und Route stimmten dann nicht. Jetzt: Track, sonst Route, nur als letzte
+         // Möglichkeit (Datei enthält nur Wegpunkte) die Wegpunkte.
+         let pts = xmlDoc.querySelectorAll("trkpt");
+         if (!pts.length) pts = xmlDoc.querySelectorAll("rtept");
+         if (!pts.length) pts = xmlDoc.querySelectorAll("wpt");
          if (!pts.length) { showToast('❌ Keine Punkte in GPX gefunden'); return; }
          if (waypoints.length && !(await customConfirm('Vorhandenen Track überschreiben?'))) return;
 

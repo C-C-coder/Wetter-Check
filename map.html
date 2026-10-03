@@ -917,7 +917,7 @@ function initTourTimelineFromParams(urlParams) {
  
  tourTimeSlider.value = 0;
 
- const dateStr = tourStartTime.toISOString().split('T')[0];
+ const dateStr = tourStartTime.toLocaleDateString('sv-SE'); // lokales Datum (nicht UTC)
  document.getElementById('sun-date').value = dateStr;
 
  const sLat = urlParams.get('startLat'), sLng = urlParams.get('startLng');
@@ -941,8 +941,13 @@ function initTourTimelineFromParams(urlParams) {
 }
 
 async function fetchTourForecasts(startCoord, peakCoord) {
- const startDate = tourStartTime.toISOString().split('T')[0];
- const endDate = tourEndTime.toISOString().split('T')[0];
+ // FIX: toISOString() liefert das UTC-Datum. Open-Meteo rechnet mit timezone=auto
+ // aber in Ortszeit - bei Touren, die zwischen 0 und 2 Uhr (Sommerzeit) enden, war
+ // end_date dadurch der VORTAG und die letzten Stunden fehlten. Jetzt lokales Datum,
+ // plus 1 Stunde Reserve am Ende.
+ const lokalesDatum = (d) => d.toLocaleDateString('sv-SE'); // YYYY-MM-DD in Ortszeit
+ const startDate = lokalesDatum(tourStartTime);
+ const endDate = lokalesDatum(new Date(tourEndTime.getTime() + 3600000));
  const hourlyParams = 'temperature_2m,relative_humidity_2m,precipitation,snowfall,weather_code,wind_speed_10m,wind_direction_10m,cloud_cover,visibility';
 
  async function fetchOne(coord) {
@@ -3264,7 +3269,7 @@ const sunTimeVal = document.getElementById('sun-time-val');
 const sunStatus = document.getElementById('sun-status');
 const nightOverlay = document.getElementById('night-overlay');
 
-sunDateInput.value = new Date().toISOString().split('T')[0];
+sunDateInput.value = new Date().toLocaleDateString('sv-SE'); // lokales Datum (nicht UTC)
 
 document.getElementById('close-sun-panel').addEventListener('click', () => {
  sunControlPanel.style.display = 'none';

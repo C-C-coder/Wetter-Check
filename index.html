@@ -1047,7 +1047,7 @@
                  <option value="Lob">👍 Lob</option>
                  <option value="Sonstiges">💬 Sonstiges</option>
              </select>
-             <textarea id="feedbackText" placeholder="Kurz beschreiben, worum es geht..."></textarea>
+             <textarea id="feedbackText" maxlength="2900" placeholder="Kurz beschreiben, worum es geht..."></textarea>
              <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-light);margin-top:10px;cursor:pointer">
                  <input type="checkbox" id="feedbackWantsReply" onchange="toggleFeedbackReplyEmail()">
                  <span>📧 Ich möchte eine Antwort erhalten</span>
@@ -1112,12 +1112,12 @@
          </div>
          <div class="help-topic">
              <h3>🚦 Wetter abfragen & die Ampel</h3>
-             <p>Berechnet das Gesamtrisiko (Niedrig/Mäßig/Hoch) für den gesamten Tourzeitraum, getrennt nach Tal und Gipfel/Ziel sowie Zwischenpunkten entlang der Route. Warnungen fassen die kritischsten Faktoren zusammen (Gewitter, Wind, Regen, Sicht, Vereisung, Hitze/Kälte). Für die nächsten ca. 60 Stunden werden Temperatur, Wind, Böen, Regen und Gewitterpotenzial automatisch durch die präziseren Werte des hochauflösenden 1km-Modells C-LAEF AlpeAdria ersetzt, wo verfügbar - unsichtbar im Hintergrund, es wird immer einfach der genaueste verfügbare Wert angezeigt.</p>
+             <p>Berechnet das Gesamtrisiko (Niedrig/Mäßig/Hoch) für den gesamten Tourzeitraum, getrennt nach Tal und Gipfel/Ziel sowie Zwischenpunkten entlang der Route. Warnungen fassen die kritischsten Faktoren zusammen (Gewitter, Wind, Regen, Sicht, Vereisung, Hitze/Kälte). Für die nächsten ca. 60 Stunden werden Temperatur, Wind, Böen, Niederschlag und Gewitterpotenzial im Tal und am Gipfel automatisch mit dem hochauflösenden 1km-Modell C-LAEF AlpeAdria verfeinert - auf die tatsächliche Höhe des Punkts umgerechnet. Fällt eine Datenquelle aus, rechnet die App automatisch mit den übrigen weiter.</p>
          </div>
          <div class="help-topic">
              <h3>🛰️ Woher kommen die Wetterdaten?</h3>
-             <p><strong>Grundlage (bis 16 Tage im Voraus):</strong> Open-Meteo vergleicht sechs Wettermodelle miteinander - "best_match" (automatische Bestauswahl), ICON-D2 (Deutscher Wetterdienst, 2km), ECMWF IFS (europäisches Modell), GFS (US-Wetterdienst), AROME Austria und AROME France (beide GeoSphere/Météo-France, hochauflösend für den Alpenraum). Aus der Streuung dieser Modelle ergibt sich die "Prognose-Verlässlichkeit" (Modellübereinstimmung) weiter unten in der Auswertung.<br><br>
-             <strong>Für die nächsten ca. 60 Stunden zusätzlich:</strong> C-LAEF AlpeAdria von GeoSphere Austria, ein eigenständiges 1km-Vorhersagemodell (feinere Auflösung als die 2-2,5km der anderen Modelle) - ersetzt automatisch Temperatur, Wind, Böen, Regen und Gewitterpotenzial, wo verfügbar.<br><br>
+             <p><strong>Grundlage (bis 16 Tage im Voraus):</strong> Open-Meteo liefert mehrere Wettermodelle - "best_match" (automatische Bestauswahl), ICON-D2 (Deutscher Wetterdienst, 2km), ICON-CH1 und ICON-CH2 (MeteoSchweiz, 1km bis 33 Stunden bzw. 2km bis 5 Tage), AROME France und AROME France HD (Météo-France, 2,5km bzw. 1,3km), ECMWF IFS 0,25° (europäisches Modell) und GFS (US-Wetterdienst). Für jede Stunde wird automatisch das feinste Modell verwendet, das für den Ort Daten hat - in Österreich ICON-CH1, dann ICON-D2, dann ICON-CH2; in den Westalpen zuerst AROME France HD. Erst wenn keines davon Daten hat (ab ca. 5 Tagen), gilt "best_match". Für die ersten ca. 60 Stunden kommt C-LAEF AlpeAdria (GeoSphere, 1km) als weiteres Vergleichsmodell dazu - der Nachfolger von AROME Austria, das GeoSphere im November 2026 einstellt. Ist ein Modell vorübergehend nicht verfügbar, fragt die App automatisch ohne dieses Modell erneut ab. Aus der Streuung dieser Modelle ergibt sich die "Prognose-Verlässlichkeit" (Modellübereinstimmung) weiter unten in der Auswertung.<br><br>
+             <strong>Für die nächsten ca. 60 Stunden zusätzlich:</strong> C-LAEF AlpeAdria von GeoSphere Austria (seit September 2026 im Regelbetrieb), ein eigenständiges 1km-Vorhersagemodell (feinere Auflösung als die 2-2,5km der anderen Modelle). Da ein Modell-Rasterpunkt die mittlere Höhe seiner Zelle wiedergibt, wird die Temperatur auf die echte Höhe von Tal bzw. Gipfel umgerechnet; passt die Zellhöhe nicht zum Punkt (z.B. spitzer Gipfel), zählt beim Wind der ungünstigere der beiden Werte. Niederschlag und Gewitterpotenzial kommen direkt aus C-LAEF. Ist der letzte C-LAEF-Lauf älter als 12 Stunden (z.B. bei einer Lieferstörung), wird er ignoriert und die App rechnet mit den übrigen Modellen.<br><br>
              <strong>Für die Live-Tour-Wetter-Box:</strong> Ein separates 15-Minuten-Kurzfrist-Regenradar (GeoSphere Nowcast), das aktuelle Beobachtungen kurz in die Zukunft fortschreibt - unabhängig von den Vorhersagemodellen oben, nur für die nächsten paar Stunden gedacht.<br><br>
              <strong>Geländehöhen:</strong> Open-Meteo Elevation API. <strong>Ortssuche:</strong> Open-Meteo Geocoding. <strong>Wegführung im GPX-Planer:</strong> OpenRouteService.</p>
          </div>
@@ -1397,7 +1397,14 @@ Kartendaten: © <a href="https://www.openstreetmap.org/copyright" target="_blank
  let debugErrorCount = 0;
  const MAX_DEBUG_ERRORS = 25;
 
- function logDebugError(source, err) {
+ // Text aus fremden Quellen (OSM-/Nominatim-Namen, eigene Eingaben, Cloud-Daten)
+// wird an manchen Stellen per innerHTML angezeigt. Ein Name mit "<" oder "&"
+// konnte dadurch die Anzeige zerschießen bzw. HTML/Skript einschleusen.
+function escapeHtml(v) {
+return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function logDebugError(source, err) {
      if (!isMobileDebugEnabled) return;
      debugErrorCount++;
      if (debugErrorCount > MAX_DEBUG_ERRORS) return;
@@ -1484,7 +1491,10 @@ db.collection(collectionName).doc(docId).set(
 }
 function trackTourQuery() {
 incrementCounter('stats', 'queries', 'total');
-const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+// FIX: toISOString() liefert das UTC-Datum - Abfragen zwischen 00:00 und 02:00
+// Uhr (Sommerzeit) landeten dadurch beim Vortag. Jetzt lokales Datum (sv-SE
+// formatiert als YYYY-MM-DD); feedback-admin.html liest denselben Schlüssel.
+const today = new Date().toLocaleDateString('sv-SE');
 incrementCounter('dailyStats', today, 'count');
 }
 // FIX: trackNewRegistration() (client-seitiger +1-Zähler bei jeder Registrierung)
@@ -1496,6 +1506,16 @@ incrementCounter('dailyStats', today, 'count');
 // ein Konto entstanden ist.
 let currentUserUid = null;
 let isRealAccount = false; // true = echtes E-Mail-Konto (nicht nur anonym)
+// FIX: Wurde die App über einen Push-Klick komplett neu gestartet (#activeTour),
+// lief loadActiveTourFromCloud() bisher sofort beim Seitenaufbau - zu diesem
+// Zeitpunkt ist die Anmeldung aber noch gar nicht wiederhergestellt
+// (currentUserUid === null), die Funktion brach still ab und es passierte nichts.
+// Jetzt wird der Wunsch gemerkt und erst nach erfolgter Anmeldung ausgeführt.
+let pendingActiveTourLoad = false;
+function requestActiveTourLoad() {
+ if (currentUserUid) loadActiveTourFromCloud();
+ else pendingActiveTourLoad = true;
+}
 
 // Sichere Auth-Zustandsänderung & Laden der Cloud-Favoriten
 auth.onAuthStateChanged((user) => {
@@ -1504,6 +1524,10 @@ auth.onAuthStateChanged((user) => {
       loadFavoritesFromCloud();
       updateAccountUI(user);
       silentlyLoadWeatherSnapshot();
+      if (pendingActiveTourLoad) {
+          pendingActiveTourLoad = false;
+          loadActiveTourFromCloud();
+      }
   } else {
       auth.signInAnonymously().catch(err => { console.error('Auth Fehler:', err); logDebugError('signInAnonymously', err); });
   }
@@ -1710,13 +1734,22 @@ navigator.serviceWorker.register('./firebase-messaging-sw.js')
  // blieb aber unsichtbar, bis das Debug-Log an diese Stelle angebunden wurde. Der
  // tatsächliche Push-Code weiter unten übergibt die Registrierung schon korrekt direkt
  // an getToken({serviceWorkerRegistration:...}) - diese Zeile war überflüssig.
+ // FIX: Das Backend sendet seit dem Doppel-Benachrichtigungs-Fix nur noch
+ // "data-only"-Nachrichten (Titel/Text stecken in payload.data, es gibt kein
+ // payload.notification mehr). Diese Prüfung hier verlangte aber payload.notification -
+ // war die App gerade GEÖFFNET (Vordergrund), wurde jede Warnung dadurch still
+ // verschluckt. Jetzt wie im Service Worker: Titel/Text aus beiden Quellen.
  messaging.onMessage((payload) => {
-     if (payload.notification) {
-         if ('Notification' in window && Notification.permission === 'granted') {
-             navigator.serviceWorker.ready.then(reg => {
-                 reg.showNotification(payload.notification.title, { body: payload.notification.body, icon: 'logo.png', data: payload.data });
+     const title = payload.notification?.title || payload.data?.title;
+     if (!title) return;
+     const body = payload.notification?.body || payload.data?.body || '';
+     if ('Notification' in window && Notification.permission === 'granted') {
+         navigator.serviceWorker.ready.then(reg => {
+             reg.showNotification(title, {
+                 body, icon: 'logo.png', data: payload.data || {},
+                 tag: payload.data?.tag || undefined, renotify: !!payload.data?.tag
              });
-         }
+         });
      }
  });
 }).catch((err) => {
@@ -1772,12 +1805,12 @@ if (isActive) {
  const phase = laeuft
    ? '<span style="color:#7ce8bc;">▶️ Tour läuft – Warnungen für deine Routenabschnitte aktiv.</span>'
    : '<span style="color:var(--text-light);">🗓️ Geplant. Du bekommst am Vorabend und 10 Min. vor dem Start eine kurze Einschätzung.</span>';
- infoBox.innerHTML = `🔔 <strong>Push-Benachrichtigungen aktiv</strong> für: <em>${tourTitle}</em> (Start: ${startTime ? startTime.replace('T', ' ') : '–'})<br>${phase}<br><button type="button" class="action-btn" onclick="loadActiveTourFromCloud()" style="margin-top:8px;background:#0284c7;font-size:12px;padding:6px 10px;">aktive Tour laden</button>`;
+ infoBox.innerHTML = `🔔 <strong>Push-Benachrichtigungen aktiv</strong> für: <em>${escapeHtml(tourTitle)}</em> (Start: ${startTime ? startTime.replace('T', ' ') : '–'})<br>${phase}<br><button type="button" class="action-btn" onclick="loadActiveTourFromCloud()" style="margin-top:8px;background:#0284c7;font-size:12px;padding:6px 10px;">aktive Tour laden</button>`;
 } else if (beendet) {
  btn.classList.remove('active');
  btn.innerText = 'Push Benachrichtigungen für die Tour aktivieren';
  infoBox.style.display = 'block';
- infoBox.innerHTML = `✅ <strong>Tour beendet.</strong> <em>${tourTitle}</em> – die Warnungen wurden automatisch abgeschaltet.`;
+ infoBox.innerHTML = `✅ <strong>Tour beendet.</strong> <em>${escapeHtml(tourTitle)}</em> – die Warnungen wurden automatisch abgeschaltet.`;
 } else {
  btn.classList.remove('active');
  btn.innerText = 'Push Benachrichtigungen für die Tour aktivieren';
@@ -1817,6 +1850,7 @@ navigator.geolocation.getCurrentPosition(async (pos) => {
  }
  
  btn.innerText = origText;
+ clearGpxTrack();
  clearPeak();
  saveState();
  searchMountainsAroundStart();
@@ -1862,12 +1896,29 @@ try {
      }
      if (data.duration) document.getElementById('duration').value = data.duration;
      if (data.tourTypes) setSelectedTourTypes(data.tourTypes);
+     if (typeof data.exposure === 'string') {
+         const ex = document.getElementById('exposureSelect');
+         if (ex) ex.value = data.exposure;
+     }
+     // FIX: Der beim Abo mitgespeicherte Track wurde beim Laden bisher ignoriert -
+     // die Auswertung lief dann über die Luftlinie (oder schlimmer: über einen noch
+     // im Speicher liegenden Track einer ANDEREN Tour). Jetzt wie bei Cloud-Favoriten.
+     const hasTrack = Array.isArray(data.track) && data.track.length >= 2;
+     if (hasTrack) {
+         gpxTrackForCloud = data.track.map(p => [p.lat, p.lon, p.ele]);
+         document.getElementById('gpxUrlParam').value = buildGpxBlobUrlFromTrack(gpxTrackForCloud);
+         document.getElementById('gpxStatus').innerText = `✅ GPX-Track der aktiven Tour geladen (${gpxTrackForCloud.length} Stützpunkte)`;
+     } else {
+         clearGpxTrack();
+     }
      if (data.peak_name) {
          selectedPeak = { name: data.peak_name, lat: data.peak_lat || null, lon: data.peak_lon || null, alt: data.peak_alt || null };
-         await computeRouteShapeForManualPeak(selectedPeak);
+         if (hasTrack) computeRouteShape(gpxTrackForCloud);
+         else await computeRouteShapeForManualPeak(selectedPeak);
          renderSelectedPeak();
      } else {
          clearPeak();
+         if (hasTrack) computeRouteShape(gpxTrackForCloud);
      }
      renderWeatherSnapshot(data.weather_snapshot);
      customAlert('✅ Aktive Tour erfolgreich geladen!');
@@ -1923,6 +1974,9 @@ if (!isActive) {
                  peak_lon: peak?.lon || null,
                  peak_alt: peak?.alt || null,
                  tourTypes: getSelectedTourTypes(),
+                 // Exposition mitgeben, damit das Backend (Briefing/Push) exakt
+                 // gleich bewertet wie die Ampel hier in der App.
+                 exposure: document.getElementById('exposureSelect')?.value || '',
                  startTime: startTimeVal,
                  duration: Number(document.getElementById('duration').value || 6),
                  last_weather_state: 'stable',
@@ -1950,7 +2004,13 @@ if (!isActive) {
              localStorage.removeItem('tour_push_finished');
              updatePushStatusUI();
              customAlert('Erfolgreich! Tour aktiv und in Cloud gesichert.');
+         } else {
+             customAlert('Es konnte kein Push-Schlüssel für dieses Gerät erzeugt werden. Bitte App neu laden und erneut versuchen.');
          }
+     } else {
+         // FIX: Bei verweigerter/blockierter Benachrichtigungs-Erlaubnis passierte bisher
+         // einfach nichts - man hielt die Warnungen evtl. für aktiv.
+         customAlert('Benachrichtigungen sind für diese App blockiert. Bitte in den Browser-/Handy-Einstellungen für diese Seite erlauben und dann erneut aktivieren.');
      }
  } catch (error) {
      customAlert('Fehler: ' + error.message);
@@ -2058,6 +2118,11 @@ async function computeRouteShapeForManualPeak(peak) {
      }
  } catch (e) {}
 
+ // FIX: Während der Höhenabfrage kann sich die Auswahl geändert haben (anderer
+ // Gipfel, GPX/Planer-Track oder aktive Tour geladen). Das veraltete Ergebnis würde
+ // sonst die inzwischen richtige Routenform überschreiben.
+ if (selectedPeak !== peak) return;
+
  if (!Number.isFinite(startEle)) {
      routeShape = { mode: 'ascent', talOverride: null, peakOverride: null, secondLabel: 'Gipfel', secondIsPeak: true };
      return;
@@ -2139,6 +2204,7 @@ try {
 } catch(e) {
  document.getElementById('locationSearch').value = 'Kartenpunkt';
 }
+clearGpxTrack();
 clearPeak();
 saveState();
 searchMountainsAroundStart();
@@ -2190,7 +2256,7 @@ setTimeout(async () => {
  peakCandidates.forEach((p, idx) => {
      if (p.lat && p.lon) {
          const m = L.marker([p.lat, p.lon]).addTo(peakMapInstance);
-         m.bindPopup(`<b>⛰️ ${p.name}</b><br>${p.alt||''}m<br><button onclick="selectPeakByIndex(${idx})" style="margin-top:6px;background:#10b981;color:#fff;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;">Auswählen</button>`);
+         m.bindPopup(`<b>⛰️ ${escapeHtml(p.name)}</b><br>${p.alt||''}m<br><button onclick="selectPeakByIndex(${idx})" style="margin-top:6px;background:#10b981;color:#fff;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;">Auswählen</button>`);
          peakMapMarkers.push(m);
      }
  });
@@ -2294,6 +2360,50 @@ if(selectedPeak) {
  localStorage.setItem('bt5_peak',JSON.stringify(selectedPeak));
 }
 }
+// Gespeicherte Eingaben beim Öffnen wiederherstellen (saveState() schrieb sie bisher
+// nur, nichts las sie je wieder ein). Bewusst NICHT wiederhergestellt:
+// - Startzeit: bleibt "jetzt" (eine alte Zeit würde unbemerkt eine vergangene Tour
+//   bewerten)
+// - GPX-Track: die Blob-Adresse ist nach dem Neuladen ungültig
+// Jeder Schritt einzeln abgesichert - ein kaputter Eintrag setzt nur diesen Wert
+// nicht, die App startet in jedem Fall.
+async function restoreState(){
+try{
+ const get = (id) => localStorage.getItem('bt5_'+id);
+ const lat = parseFloat(get('lat')), lon = parseFloat(get('lon'));
+ if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+     document.getElementById('locationSearch').value = get('locationSearch') || '';
+     document.getElementById('lat').value = lat;
+     document.getElementById('lon').value = lon;
+     const sLat = parseFloat(get('start_lat')), sLon = parseFloat(get('start_lon'));
+     document.getElementById('start_lat').value = Number.isFinite(sLat) ? sLat : lat;
+     document.getElementById('start_lon').value = Number.isFinite(sLon) ? sLon : lon;
+ }
+ const dur = get('duration');
+ const durEl = document.getElementById('duration');
+ if (dur && durEl && [...durEl.options].some(o => o.value === dur)) durEl.value = dur;
+ const exp = get('exposureSelect');
+ const expEl = document.getElementById('exposureSelect');
+ if (exp !== null && expEl && [...expEl.options].some(o => o.value === exp)) expEl.value = exp;
+ try {
+     const tt = JSON.parse(get('tourTypes') || 'null');
+     if (Array.isArray(tt)) setSelectedTourTypes(tt);
+ } catch (e) {}
+ try {
+     const pk = JSON.parse(localStorage.getItem('bt5_peak') || 'null');
+     if (pk && pk.name && Number.isFinite(Number(pk.lat)) && Number.isFinite(Number(pk.lon))
+         && document.getElementById('lat').value) {
+         selectedPeak = { name: String(pk.name), lat: Number(pk.lat), lon: Number(pk.lon),
+                          alt: Number.isFinite(Number(pk.alt)) && Number(pk.alt) > 0 ? Number(pk.alt) : null };
+         renderSelectedPeak();
+         await computeRouteShapeForManualPeak(selectedPeak);
+     }
+ } catch (e) { logDebugError('restoreState/peak', e); }
+}catch(e){
+ logDebugError('restoreState', e);
+}
+}
+
 function clearSearchField(){
 document.getElementById('locationSearch').value='';
 document.getElementById('locationResultsSelect').style.display='none';
@@ -2302,7 +2412,7 @@ document.getElementById('lat').value='';
 document.getElementById('lon').value='';
 document.getElementById('start_lat').value='';
 document.getElementById('start_lon').value='';
-document.getElementById('gpxUrlParam').value='';
+clearGpxTrack();
 clearPeak();
 localStorage.removeItem('bt5_peak');
 saveState();
@@ -2313,7 +2423,7 @@ document.getElementById('lon').value='';
 document.getElementById('start_lat').value='';
 document.getElementById('start_lon').value='';
 document.getElementById('locationPreview').innerText='';
-document.getElementById('gpxUrlParam').value='';
+clearGpxTrack();
 clearPeak();
 localStorage.removeItem('bt5_peak');
 saveState();
@@ -2401,6 +2511,21 @@ function buildTrackForCloud(rawPoints) {
 
 let gpxTrackForCloud = null;   // wird beim Abonnieren mitgeschrieben
 
+// FIX: Ein einmal geladener GPX-Track blieb bisher im Speicher, auch wenn danach
+// ein ganz anderer Startort gewählt wurde (Ortssuche, GPS, Kartenpunkt, Feld
+// leeren). Folge: Die Risiko-Engine wertete Zwischenpunkte der ALTEN Route aus,
+// und beim Push-Abo bzw. Speichern wurde der alte Track an die neue Tour gehängt.
+// Wird jetzt überall dort mitgelöscht, wo der Startort neu gesetzt wird.
+function clearGpxTrack() {
+ gpxTrackForCloud = null;
+ const st = document.getElementById('gpxStatus');
+ if (st) st.innerText = '';
+ const gpxParam = document.getElementById('gpxUrlParam');
+ if (gpxParam) gpxParam.value = '';
+ const fileInput = document.getElementById('gpxFileInput');
+ if (fileInput) fileInput.value = ''; // sonst löst dieselbe Datei kein onchange mehr aus
+}
+
 // Baut aus den gespeicherten Stützpunkten [lat,lon,ele] wieder eine minimale, gültige
 // GPX-Datei (als Blob-URL) - wird beim Laden einer Cloud-Tour gebraucht, damit der
 // Kartenlink (map.html?gpx=...) den Track wieder zeichnen kann, obwohl die ursprüngliche
@@ -2430,7 +2555,13 @@ const reader = new FileReader();
 reader.onload = async function(e) {
  try {
      const xmlDoc = new DOMParser().parseFromString(e.target.result, "text/xml");
-     const pts = xmlDoc.querySelectorAll("trkpt, wpt");
+     // FIX: "trkpt, wpt" mischte Wegpunkte (z.B. Hütte, Parkplatz, Gipfelmarker -
+     // stehen in GPX-Dateien meist VOR dem Track) unter die Trackpunkte. Start, Gipfel
+     // und Route stimmten dann nicht. Jetzt: Track, sonst Route, nur als letzte
+     // Möglichkeit (Datei enthält nur Wegpunkte) die Wegpunkte.
+     let pts = xmlDoc.querySelectorAll("trkpt");
+     if (!pts.length) pts = xmlDoc.querySelectorAll("rtept");
+     if (!pts.length) pts = xmlDoc.querySelectorAll("wpt");
      if (!pts.length) {
          status.innerText = '❌ Keine Punkte in GPX.';
          return;
@@ -2720,6 +2851,7 @@ document.getElementById('start_lon').value=Number(p.longitude).toFixed(5);
 document.getElementById('locationSearch').value=p.name;
 document.getElementById('locationPreview').innerText='📍 '+p.name+' · '+(p.elevation?Math.round(p.elevation)+'m':'');
 document.getElementById('locationResultsSelect').style.display='none';
+clearGpxTrack();
 clearPeak();
 saveState();
 searchMountainsAroundStart();
@@ -2801,16 +2933,21 @@ try {
          };
      });
 
+ // FIX: Die Elevation-API nimmt max. 100 Koordinaten pro Anfrage. Seit der
+ // Overpass-Abfrage ohne Limit ("out body qt") kommen in dichten Gebieten aber oft
+ // mehr Gipfel ohne "ele"-Angabe zurück - die Anfrage scheiterte dann komplett und
+ // ALLE diese Gipfel blieben "Höhe unbekannt". Jetzt in 100er-Paketen.
  const missingEle = rawPeaks.filter(p => !p.alt);
- if (missingEle.length > 0) {
+ for (let start = 0; start < missingEle.length; start += 100) {
+     const chunk = missingEle.slice(start, start + 100);
      try {
-         const lats = missingEle.map(p => p.lat.toFixed(5)).join(',');
-         const lons = missingEle.map(p => p.lon.toFixed(5)).join(',');
+         const lats = chunk.map(p => p.lat.toFixed(5)).join(',');
+         const lons = chunk.map(p => p.lon.toFixed(5)).join(',');
          const elR = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`);
          if (elR.ok) {
              const elD = await elR.json();
              const elevs = Array.isArray(elD.elevation) ? elD.elevation : [elD.elevation];
-             missingEle.forEach((p, idx) => {
+             chunk.forEach((p, idx) => {
                  if (elevs[idx] !== undefined && elevs[idx] !== null) {
                      p.alt = Math.round(elevs[idx]);
                  }
@@ -2865,7 +3002,7 @@ function renderSelectedPeak(){
 if(!selectedPeak) return;
 document.getElementById('peakSelected').style.display='block';
 const altStr=selectedPeak.alt?selectedPeak.alt+' m':'Höhe unbekannt';
-document.getElementById('peakSelected').innerHTML='<strong>⛰️ '+selectedPeak.name+'</strong> · '+altStr+' · '+(selectedPeak.distance?selectedPeak.distance.toFixed(1)+' km':'');
+document.getElementById('peakSelected').innerHTML='<strong>⛰️ '+escapeHtml(selectedPeak.name)+'</strong> · '+altStr+' · '+(selectedPeak.distance?selectedPeak.distance.toFixed(1)+' km':'');
 const drop = document.getElementById('peakDropdown');
 if(drop) drop.value='';
 }
@@ -2964,20 +3101,21 @@ return r.json();
 
 // ===========================================================================
 // C-LAEF AlpeAdria (nwp-v2-1h-1km) - neues, hochauflösenderes (1km statt 2,5km)
-// GeoSphere-Vorhersagemodell, Nachfolger von nwp-v1-1h-2500m. Deckt nur die
-// nächsten ca. 60 Stunden ab (kein Ersatz für den bestehenden 16-Tage-Mix aus
-// mehreren Modellen), wird deshalb NUR als zusätzliche, separate Verfeinerung
-// angezeigt, wenn die Tour bald startet - NICHT in die Risiko-Berechnung
-// eingebaut, bis die Datenstruktur live bestätigt ist. Parameter-Codes stammen
-// aus der Dokumentation des Vorgängermodells (nwp-v1) - beim tatsächlichen
-// Nachfolger nicht 1:1 verifiziert, daher hier bewusst defensiv/fehlertolerant.
+// GeoSphere-Vorhersagemodell, Nachfolger von nwp-v1-1h-2500m (seit Sept. 2026
+// operationell). Deckt nur die nächsten ca. 60 Stunden ab (kein Ersatz für den
+// 16-Tage-Mix aus mehreren Modellen) und ersetzt innerhalb dieses Fensters
+// stundenweise Temperatur, Wind, Böen, Niederschlag und CAPE in der Risiko-
+// Berechnung (siehe analyzeRisk). Bei jedem Fehler bleibt es beim Modell-Mix.
 async function fetchGeoSphereNwpV2(lat,lon){
 // Echte, per Metadaten-Auskunft der API bestätigte Parameternamen für nwp-v2 -
 // komplett anders als beim alten nwp-v1 ("2t" statt "t2m", "10u"/"10v" statt
 // "u10m"/"v10m", "10fg" ist bereits die fertige Böen-Geschwindigkeit als ein
-// einzelner Wert, nicht zwei Komponenten wie beim alten Modell). "rain" ist der
-// Wert pro Stunde, nicht aufsummiert seit Modellstart - keine Umrechnung nötig.
-const params='2t,10u,10v,10fg,rain,cape';
+// einzelner Wert, nicht zwei Komponenten wie beim alten Modell).
+// FIX: "rain" ist laut Metadaten NUR flüssiger Niederschlag. Ersetzt wurde damit aber
+// Open-Meteos "precipitation" (= Regen + Schnee als Wasser). Bei Schneefall stand
+// dadurch 0 mm in der Risikoberechnung (Nässe-/Regenpunkte entfielen). "tp" (total
+// precipitation, mm pro Stunde) ist das exakte Gegenstück.
+const params='2t,10u,10v,10fg,tp,cape';
 const url='https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nwp-v2-1h-1km?lat_lon='+
 encodeURIComponent(lat.toFixed(5)+','+lon.toFixed(5))+
 '&parameters='+params+'&output_format=geojson';
@@ -2989,11 +3127,11 @@ if(!r.ok){
 return r.json();
 }
 
-// Sucht in einer Zeitreihe den Index, dessen Zeitstempel am nächsten an targetDt liegt.
 // Liefert eine Map von Stunden-Zeitpunkt (als Epoche in ganzen Stunden, damit
 // unterschiedliche Zeitzonen-/Format-Schreibweisen zwischen den beiden APIs keine
-// Rolle spielen) auf den Böen-Wert in km/h aus C-LAEF AlpeAdria. null bei jedem
-// Fehler - wird von den Aufrufstellen einfach ignoriert, nie ein harter Fehler.
+// Rolle spielen) auf {temp, wind, gust, rain, cape} aus C-LAEF AlpeAdria. null bei
+// jedem Fehler - wird von den Aufrufstellen einfach ignoriert, nie ein harter Fehler.
+const CLAEF_MAX_AGE_H = 12;
 async function fetchClaefHourlyMap(lat,lon){
 try{
  const data=await fetchGeoSphereNwpV2(lat,lon);
@@ -3001,13 +3139,27 @@ try{
  if(!f) return null;
  const times=geoSphereTimestamps(data,f);
  if(!times.length) return null;
+ // Altersprüfung: C-LAEF rechnet alle 3 Stunden neu. Hängt die Lieferung bei
+ // GeoSphere (z.B. Ausfall), wäre ein Lauf von gestern UNGENAUER als der frische
+ // Modell-Mix - dann wird C-LAEF komplett ignoriert (Rückfall auf Open-Meteo).
+ const refStr = data.reference_time || data.referenceTime || f.properties?.reference_time || times[0];
+ const refMs = new Date(refStr).getTime();
+ if (Number.isFinite(refMs) && Date.now() - refMs > CLAEF_MAX_AGE_H * 3600000) {
+     logDebugError('fetchClaefHourlyMap', new Error('C-LAEF-Lauf veraltet ('+refStr+') - Open-Meteo wird verwendet'));
+     return null;
+ }
  const temps=geoSphereValues(f,'2t');
  const us=geoSphereValues(f,'10u');
  const vs=geoSphereValues(f,'10v');
  const gusts=geoSphereValues(f,'10fg');
- const rains=geoSphereValues(f,'rain');
+ const rains=geoSphereValues(f,'tp');
  const capes=geoSphereValues(f,'cape');
  const map=new Map();
+ // Tatsächlicher Gitterpunkt, den die API für die Abfrage verwendet hat (GeoJSON:
+ // [lon, lat]) - Grundlage für die Bestimmung der Modell-Zellhöhe (claefCellElevations).
+ const gc=f.geometry?.coordinates;
+ map.gridLon=Array.isArray(gc)&&Number.isFinite(Number(gc[0])) ? Number(gc[0]) : lon;
+ map.gridLat=Array.isArray(gc)&&Number.isFinite(Number(gc[1])) ? Number(gc[1]) : lat;
  times.forEach((t,i)=>{
      const hourEpoch=Math.floor(new Date(t).getTime()/3600000);
      const u=us[i], v=vs[i];
@@ -3032,6 +3184,96 @@ function claefLookup(map, isoTime){
 if(!map) return null;
 const hourEpoch=Math.floor(new Date(isoTime).getTime()/3600000);
 return map.get(hourEpoch) || null;
+}
+
+// ---------------------------------------------------------------------------
+// HÖHENKORREKTUR FÜR C-LAEF
+// C-LAEF liefert pro 1km-Rasterzelle EINEN Wert für die mittlere Geländehöhe dieser
+// Zelle - nicht für die exakte Höhe des abgefragten Punkts. Bei spitzen Gipfeln liegt
+// die Zelle oft 200-500 m tiefer (zu warm, zu wenig Wind), in engen Tälern höher (zu
+// kalt). Die Zellhöhe gibt die API nicht mit aus, deshalb wird sie hier geschätzt:
+// Mittelwert des 90m-Höhenmodells an 3x3 Punkten innerhalb der Zelle um den
+// tatsächlichen Gitterpunkt. Alle Zellen in EINER Anfrage. Liefert pro Map die
+// Zellhöhe oder null (dann greift in claefBlend der sichere Rückfall).
+async function claefCellElevations(maps){
+try{
+ const lats=[], lons=[];
+ const used=maps.map(m=>m && Number.isFinite(m.gridLat) && Number.isFinite(m.gridLon));
+ maps.forEach((m,mi)=>{
+     if(!used[mi]) return;
+     const dLat=0.003; // ~330 m -> 3x3 Punkte decken die 1km-Zelle ab
+     const dLon=0.003/Math.max(0.2, Math.cos(m.gridLat*Math.PI/180));
+     for(const a of [-1,0,1]) for(const b of [-1,0,1]){
+         lats.push((m.gridLat+a*dLat).toFixed(5));
+         lons.push((m.gridLon+b*dLon).toFixed(5));
+     }
+ });
+ if(!lats.length) return maps.map(()=>null);
+ const r=await fetch('https://api.open-meteo.com/v1/elevation?latitude='+lats.join(',')+'&longitude='+lons.join(','));
+ if(!r.ok) throw new Error('Elevation HTTP '+r.status);
+ const ev=(await r.json())?.elevation;
+ if(!Array.isArray(ev) || ev.length!==lats.length) throw new Error('Elevation: unerwartete Antwort');
+ let k=0;
+ return maps.map((m,mi)=>{
+     if(!used[mi]) return null;
+     const vals=ev.slice(k,k+9).map(Number).filter(Number.isFinite);
+     k+=9;
+     return vals.length>=5 ? vals.reduce((s,v)=>s+v,0)/vals.length : null;
+ });
+}catch(e){
+ logDebugError('claefCellElevations', e);
+ return maps.map(()=>null);
+}
+}
+
+// Hängt C-LAEF als zusätzliches "Modell" an eine Open-Meteo-Stundenreihe an
+// (temperature_2m_claef, precipitation_claef, wind_speed_10m_claef) - für den
+// Modellvergleich (calculateRealModelConfidence). Nur echte, vergleichbare Werte:
+// Temperatur höhenkorrigiert (bei bekannter Zellhöhe, max. 600 m Abweichung),
+// Wind nur bei passender Zellhöhe (±150 m) - sonst wäre die Abweichung ein
+// Rasterhöhen-Effekt und keine echte Uneinigkeit der Modelle.
+function attachClaefSeries(hourly, map, cellElev, targetElev){
+if(!hourly || !Array.isArray(hourly.time) || !map) return;
+const elevKnown=Number.isFinite(cellElev) && Number.isFinite(targetElev) && targetElev>0;
+const diff=elevKnown ? cellElev-targetElev : null;
+const t=[], r=[], w=[];
+hourly.time.forEach((iso,i)=>{
+ const c=claefLookup(map, iso);
+ t[i]= c && c.temp!==undefined && elevKnown && Math.abs(diff)<=600 ? c.temp+0.0065*diff : null;
+ r[i]= c && c.rain!==undefined ? c.rain : null;
+ w[i]= c && c.wind!==undefined && elevKnown && Math.abs(diff)<=150 ? c.wind : null;
+});
+hourly.temperature_2m_claef=t;
+hourly.precipitation_claef=r;
+hourly.wind_speed_10m_claef=w;
+}
+
+// Kombiniert Modell-Mix (Open-Meteo, bereits auf die exakte Punkthöhe umgerechnet)
+// mit C-LAEF (1km, aber Zellhöhe) zum genauesten UND sicheren Wert:
+// - Temperatur: C-LAEF wird mit dem Standard-Temperaturgradienten (0,65°C/100m) von
+//   der Zellhöhe auf die echte Punkthöhe umgerechnet. Ohne bekannte Zellhöhe oder
+//   bei extremer Abweichung (>600 m, dann ist die Zelle nicht repräsentativ) bleibt
+//   der höhenkorrigierte Open-Meteo-Wert.
+// - Wind/Böen: passt die Zellhöhe (±150 m), gilt C-LAEF (lokale Kanalisierung,
+//   Föhn). Sonst der HÖHERE der beiden Werte - ein exponierter Gipfel bekommt im
+//   geglätteten Gelände zu wenig Wind ab, bei Sicherheit zählt der ungünstigere Fall.
+// - Niederschlag/CAPE: wenig höhenabhängig, die 1km-Auflösung erfasst Gewitterzellen
+//   und Stau deutlich besser -> C-LAEF.
+// Jeder fehlende C-LAEF-Wert fällt einzeln auf den Modell-Mix zurück.
+function claefBlend(base, claef, cellElev, targetElev){
+const out={...base};
+if(!claef) return out;
+const elevKnown=Number.isFinite(cellElev) && Number.isFinite(targetElev) && targetElev>0;
+const diff=elevKnown ? cellElev-targetElev : null; // >0: Zelle liegt höher als der Punkt
+if(claef.temp!==undefined && elevKnown && Math.abs(diff)<=600){
+ out.temp=claef.temp + 0.0065*diff;
+}
+const windMatch=elevKnown && Math.abs(diff)<=150;
+if(claef.wind!==undefined) out.wind = windMatch ? claef.wind : Math.max(base.wind||0, claef.wind);
+if(claef.gust!==undefined) out.gust = windMatch ? claef.gust : Math.max(base.gust||0, claef.gust);
+if(claef.rain!==undefined) out.rain=claef.rain;
+if(claef.cape!==undefined) out.cape=claef.cape;
+return out;
 }
 
 async function fetchGeoSphereNowcastPoints(points){
@@ -3184,7 +3426,14 @@ if (!centerOnset) {
 }
 
 if(centerOnset){
- return {kind:'now',time:centerOnset.time,direction:null,amount:centerOnset.amount,confidence:'hoch'};
+ // FIX: Jeder Treffer in der Zeitreihe des eigenen Standorts wurde als "jetzt"
+ // gemeldet ("Regen erreicht Standort" + Benachrichtigung "Aktuell wird ...
+ // erfasst") - auch wenn der Nowcast den Beginn erst in 1-2 Stunden sah. Liegt der
+ // Beginn mehr als 15 Min. in der Zukunft, ist es eine Vorwarnung, keine Meldung
+ // über aktuellen Regen.
+ const minsAhead = centerOnset.time ? (new Date(centerOnset.time) - Date.now()) / 60000 : 0;
+ const kind = minsAhead > 15 ? 'incoming' : 'now';
+ return {kind,time:centerOnset.time,direction:null,amount:centerOnset.amount,confidence:'hoch'};
 }
 const grouped={};
 samples.forEach(s=>{(grouped[s.dir] ||= {})[s.km]=s;});
@@ -3350,11 +3599,19 @@ try{
          let windowMax = mins + 10;
          let etaText = `ca. ${windowMin}–${windowMax} Min.`;
          
-         html+='<div style="margin-top:9px"><strong>'+ (thunder?'⚡ Gewitter im Anmarsch':prefix + ' ('+rainDesc+') im Anmarsch') +'</strong><br>Aus Richtung <strong>'+liveDirectionName(arrival.direction)+'</strong> · in <strong>'+etaText+'</strong> (um '+liveFormatTime(arrival.time)+' Uhr)'+(arrival.speedKmh?'<br><span class="live-muted">Geschwindigkeit: '+Math.round(arrival.speedKmh)+' km/h</span>':'')+'.</div>';
-         
-         const key=arrival.direction+'-'+arrival.time.slice(0,16);
+         // Ohne Richtung (Beginn direkt am eigenen Standort vorhergesagt, siehe
+         // liveFindArrival) gibt es keine Zugrichtung anzuzeigen.
+         const herkunftTxt = arrival.direction
+             ? 'Aus Richtung <strong>'+liveDirectionName(arrival.direction)+'</strong>'
+             : 'Am Standort erwartet';
+         const herkunftPlain = arrival.direction
+             ? 'Aus Richtung '+liveDirectionName(arrival.direction)
+             : 'Am Standort erwartet';
+         html+='<div style="margin-top:9px"><strong>'+ (thunder?'⚡ Gewitter im Anmarsch':prefix + ' ('+rainDesc+') im Anmarsch') +'</strong><br>'+herkunftTxt+' · in <strong>'+etaText+'</strong> (um '+liveFormatTime(arrival.time)+' Uhr)'+(arrival.speedKmh?'<br><span class="live-muted">Geschwindigkeit: '+Math.round(arrival.speedKmh)+' km/h</span>':'')+'.</div>';
+
+         const key=(arrival.direction||'standort')+'-'+String(arrival.time||'').slice(0,16);
          if(key!==liveLastAlertKey && mins<=60){
-             liveNotify(thunder?'⚡ Gewitter im Anmarsch':prefix, 'Aus Richtung '+liveDirectionName(arrival.direction)+' · in '+etaText);
+             liveNotify(thunder?'⚡ Gewitter im Anmarsch':prefix, herkunftPlain+' · in '+etaText);
              liveLastAlertKey=key;
          }
          liveShowStatus(html,thunder?'live-danger':'live-alert');
@@ -3562,7 +3819,13 @@ if (weather.temp >= 30) { score += 25; }
 // trotz spuerbarer Auskuehlungsgefahr 0 Punkte. Jetzt gestaffelt nach der
 // tatsaechlich gefuehlten Temperatur, mit demselben Höhenfaktor wie oben (kälter
 // UND windiger auf Höhe verstärken sich gegenseitig).
-const gefuehlt = windChill(weather.temp, weather.gust);
+// FIX: Die Windchill-Formel ist für den MITTLEREN Wind definiert (10-min-Mittel),
+// nicht für Böenspitzen. Mit den Böen wurde die Auskühlung systematisch
+// überschätzt (0°C bei 30 km/h Wind / 60 km/h Böen: -9°C statt korrekt -6°C) und
+// passte nicht zum angezeigten "gefühlt"-Wert. Fehlt der mittlere Wind, wird
+// ersatzweise (sicherheitshalber) die Böe verwendet.
+const chillWind = Number.isFinite(weather.wind) && weather.wind > 0 ? weather.wind : weather.gust;
+const gefuehlt = windChill(weather.temp, chillWind);
 if (gefuehlt !== null) {
  if (gefuehlt <= -27) { score += 45 * elevFactor; }
  else if (gefuehlt <= -15) { score += 28 * elevFactor; }
@@ -3667,7 +3930,10 @@ const basis = quellen.find(q => q && Array.isArray(q.time));
 if (!basis) return { pct: null, text: 'Keine Prognosedaten verfügbar.' };
 const punkte = quellen.filter(q => q && Array.isArray(q.time) && q.time.length === basis.time.length);
 const h = basis;
-const MODELLE = ['icon_d2','ecmwf_ifs04','gfs_seamless','geosphere_arome_austria','arome_france'];
+// "claef" = höhenkorrigierte C-LAEF-Werte (nur erste ca. 60 h), werden in analyzeRisk
+// als eigene Reihe (z.B. temperature_2m_claef) an die Stundendaten angehängt -
+// Nachfolger von AROME Austria (geosphere_arome_austria, eingestellt 04.11.2026).
+const MODELLE = ['icon_d2','meteoswiss_icon_ch1','meteoswiss_icon_ch2','ecmwf_ifs025','gfs_seamless','arome_france','arome_france_hd','claef'];
 
 // Werte aller Modelle für einen Parameter zu einem Zeitschritt einsammeln
 function werte(quelle, feld, idx) {
@@ -3726,6 +3992,84 @@ if (finalPct < 60) text = 'Hohe Unsicherheit: Die Modelle sind sich uneinig. Der
 return { pct: finalPct, text: text };
 }
 
+// Modell-Sätze für Open-Meteo, vom vollständigen Vergleich bis zur Notlösung.
+// FIX/Vorsorge: Alle Modelle stecken in EINER Anfrage - lehnt Open-Meteo auch nur
+// eines davon ab (HTTP 400, z.B. weil GeoSphere das AROME-Modell
+// "geosphere_arome_austria" laut Ankündigung am 04.11.2026 einstellt), schlug
+// bisher die komplette Wetterabfrage fehl. Jetzt wird automatisch mit weniger
+// Modellen erneut gefragt. "ecmwf_ifs04" (0,4°) ist in der Open-Meteo-Doku nicht
+// mehr gelistet, Nachfolger ist "ecmwf_ifs025" (0,25°).
+const OPEN_METEO_MODEL_SETS = [
+ // AROME Austria (geosphere_arome_austria) ist entfernt: GeoSphere stellt es am
+ // 04.11.2026 ein, sein Nachfolger C-LAEF AlpeAdria (1km) wird direkt bei GeoSphere
+ // abgefragt und fließt höhenkorrigiert in Werte UND Modellvergleich ein.
+ // Hochauflösende Alpenmodelle (Bezeichner im Open-Meteo-Quellcode geprüft):
+ //   meteoswiss_icon_ch1  MeteoSchweiz ICON-CH1, 1 km, 33 h, alle 3 h
+ //   meteoswiss_icon_ch2  MeteoSchweiz ICON-CH2, 2 km, 120 h, alle 6 h
+ //   arome_france_hd      Météo-France AROME HD, 1,3 km, ca. 2 Tage, alle 3 h
+ // Liegt ein Ort außerhalb eines Modellgebiets, liefert Open-Meteo dafür nur leere
+ // Werte - kein Fehler, das Modell fällt dort einfach weg.
+ 'best_match,icon_d2,meteoswiss_icon_ch1,meteoswiss_icon_ch2,ecmwf_ifs025,gfs_seamless,arome_france,arome_france_hd',
+ 'best_match,icon_d2,ecmwf_ifs025,gfs_seamless,arome_france',
+ 'best_match'
+];
+
+// ---------------------------------------------------------------------------
+// FEINMODELL-VERFEINERUNG: "best_match" nimmt für den Alpenraum ICON-D2 (2,2 km)
+// nur bis 48 h, danach ICON-EU (7 km) - zu grob für Gipfel und Täler. Pro Stunde
+// wird deshalb das höchstauflösende Modell verwendet, das für diese Stunde einen
+// Wert hat (Open-Meteo rechnet alle Modelle bereits auf die exakte Punkthöhe um).
+// Gruppen werden immer gemeinsam aus EINEM Modell genommen (z.B. Temperatur und
+// gefühlte Temperatur), damit keine widersprüchlichen Kombinationen entstehen.
+// Fehlt in keinem Feinmodell ein Wert, bleibt best_match - der Rückfall ist also
+// immer der bisherige Stand. C-LAEF wird danach wie gehabt darübergelegt.
+// West-Alpen (Frankreich, Westschweiz): AROME France HD ist dort das nationale
+// Modell und steht vorne; sonst ICON-CH1 (1 km) vor ICON-D2 vor ICON-CH2.
+const FEINMODELL_GRUPPEN = [
+ ['temperature_2m', 'apparent_temperature', 'dew_point_2m'],
+ ['wind_gusts_10m', 'wind_speed_10m', 'wind_direction_10m'],
+ ['precipitation', 'snowfall'],
+ ['cape']
+];
+function feinmodellReihenfolge(lon) {
+ return lon < 7.5
+     ? ['arome_france_hd', 'meteoswiss_icon_ch1', 'arome_france', 'icon_d2', 'meteoswiss_icon_ch2']
+     : ['meteoswiss_icon_ch1', 'icon_d2', 'meteoswiss_icon_ch2'];
+}
+function refineWithHighResModels(hourly, lon) {
+ if (!hourly || !Array.isArray(hourly.time)) return;
+ const reihenfolge = feinmodellReihenfolge(lon);
+ const ok = (v) => typeof v === 'number' && Number.isFinite(v);
+ const quelle = new Array(hourly.time.length).fill(null);
+ hourly.time.forEach((_, i) => {
+     FEINMODELL_GRUPPEN.forEach(gruppe => {
+         const leit = gruppe[0];
+         const modell = reihenfolge.find(m => ok(hourly[`${leit}_${m}`]?.[i]));
+         if (!modell) return; // kein Feinmodell -> best_match bleibt
+         gruppe.forEach(feld => {
+             const v = hourly[`${feld}_${modell}`]?.[i];
+             if (!ok(v)) return; // Einzelwert fehlt -> best_match für dieses Feld
+             if (!Array.isArray(hourly[feld])) hourly[feld] = [];
+             // Nicht in die Original-Reihe "_best_match" hineinschreiben (gleiches Array)
+             else if (hourly[feld] === hourly[`${feld}_best_match`]) hourly[feld] = hourly[feld].slice();
+             hourly[feld][i] = v;
+         });
+         if (leit === 'temperature_2m') quelle[i] = modell;
+     });
+ });
+ hourly._feinmodell = quelle; // nur zur Fehlersuche
+}
+async function fetchOpenMeteoModels(urlTemplate) {
+ let last = null;
+ for (const set of OPEN_METEO_MODEL_SETS) {
+     const r = await fetch(urlTemplate.replace('__MODELS__', set));
+     if (r.ok || r.status !== 400) return r;
+     last = r;
+     logDebugError('Open-Meteo Modelle', new Error('HTTP 400 mit models=' + set + ' - neuer Versuch mit weniger Modellen'));
+ }
+ return last;
+}
+
 function windDir(deg){
 if(!Number.isFinite(deg)) return '–';
 const dirs=['N','NO','O','SO','S','SW','W','NW'];
@@ -3777,7 +4121,7 @@ try{
  // wurde zuvor fälschlich als "nie verwendet" entfernt, sollte aber sichtbar sein.
  // freezing_level_height ergaenzt: dient als Rueckfall fuer die Schneefallgrenze.
  const vars = 'temperature_2m,apparent_temperature,precipitation,rain,snowfall,weather_code,precipitation_probability,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cape,snowfall_height,freezing_level_height,dew_point_2m';
- const multiModels = 'best_match,icon_d2,ecmwf_ifs04,gfs_seamless,geosphere_arome_austria,arome_france';
+ const multiModels = '__MODELS__'; // wird in fetchOpenMeteoModels() eingesetzt (mit Fallback)
 
  // =====================================================================
  // ROUTENPUNKTE STATT NUR TAL UND GIPFEL
@@ -3882,8 +4226,8 @@ try{
  }
 
  const [baseR, routeR, elevR] = await Promise.all([
-     fetch('https://api.open-meteo.com/v1/forecast?'+iconUrl),
-     routeUrl ? fetch(routeUrl) : Promise.resolve(null),
+     fetchOpenMeteoModels('https://api.open-meteo.com/v1/forecast?'+iconUrl),
+     routeUrl ? fetchOpenMeteoModels(routeUrl) : Promise.resolve(null),
      fetch('https://api.open-meteo.com/v1/elevation?latitude='+talLat+'&longitude='+talLon)
  ]);
 
@@ -3914,6 +4258,14 @@ try{
          });
          if (weitere[i]) weitere[i].hourly = rd.hourly;
      }
+     // FIX: Hatte der Gipfel keine bekannte Höhe (OSM-Gipfel ohne "ele", Höhen-
+     // abfrage fehlgeschlagen), war hasPeakAlt=false - die Gipfelspalte verschwand
+     // und das Gipfelwetter floss überhaupt NICHT in die Bewertung ein, obwohl die
+     // Daten geladen waren. Open-Meteo liefert die Geländehöhe des Punkts in jeder
+     // Antwort mit (90-m-Höhenmodell) - die wird jetzt als Ersatz verwendet.
+     if (weitere[i] && !weitere[i].alt && rd && Number.isFinite(rd.elevation) && rd.elevation > 0) {
+         weitere[i].alt = Math.round(rd.elevation);
+     }
  });
 
  // Der Gipfel bleibt für die bestehende Zwei-Spalten-Darstellung gesondert greifbar.
@@ -3939,20 +4291,34 @@ try{
      });
  }
 
+ // Feinmodelle (ICON-CH1/CH2, ICON-D2, AROME France HD) für Tal, alle Routenpunkte
+ // und Gipfel - nach dem best_match-Mapping, damit es nicht wieder überschrieben wird.
+ refineWithHighResModels(h, talLon);
+ weitere.forEach(w => refineWithHighResModels(w.hourly, w.lon));
+
  const times = h.time||[];
  const targetMs = startDt.getTime();
 
- // C-LAEF AlpeAdria (1km) als Sicherheits-Verfeinerung der Böen-Werte: für jede
- // Stunde innerhalb der ca. 60-Stunden-Reichweite wird der HÖHERE Wert aus 1km-Modell
- // vs. bisherigem 6-Modelle-Mix verwendet - nie weniger vorsichtig, nur ggf. genauer,
- // wo das feinere Modell für genau diesen Punkt mehr Wind zeigt als der grobe
- // Durchschnitt. Schlägt der Abruf fehl, bleiben die Karten einfach unverändert (map
- // bleibt null) - komplett unkritisch für den Rest der Abfrage.
+ // C-LAEF AlpeAdria (1km): für jede Stunde innerhalb der ca. 60-Stunden-Reichweite
+ // verfeinern die C-LAEF-Werte (Temperatur, Wind, Böen, Niederschlag, CAPE) den
+ // Modell-Mix - höhenkorrigiert über claefBlend ("immer der genaueste verfügbare Wert").
+ // Schlägt der Abruf fehl, bleiben die Karten null - komplett unkritisch für den Rest
+ // der Abfrage.
  const claefInRange = tageBisStart*24 <= 60 && tageBisStart >= -0.5;
  const [claefTalMap, claefPeakMap] = claefInRange ? await Promise.all([
      fetchClaefHourlyMap(talLat, talLon),
      hasPeakPoint ? fetchClaefHourlyMap(routePoints[routePoints.length-1].lat, routePoints[routePoints.length-1].lon) : Promise.resolve(null)
  ]) : [null, null];
+ // Mittlere Geländehöhe der beiden C-LAEF-Zellen (für die Höhenkorrektur in claefBlend)
+ const [claefTalCellElev, claefPeakCellElev] = (claefTalMap || claefPeakMap)
+     ? await claefCellElevations([claefTalMap, claefPeakMap])
+     : [null, null];
+ // C-LAEF als Vergleichsmodell für die Prognose-Verlässlichkeit (ersetzt AROME Austria)
+ attachClaefSeries(h, claefTalMap, claefTalCellElev, baseElev);
+ if (hasPeakPoint && weitere.length && weitere[weitere.length-1].hourly) {
+     const pAlt = parseFloat(weitere[weitere.length-1].alt);
+     attachClaefSeries(weitere[weitere.length-1].hourly, claefPeakMap, claefPeakCellElev, Number.isFinite(pAlt) ? pAlt : null);
+ }
 
  const sunsetStr = data.daily?.sunset?.[0];
  const sunsetDt = sunsetStr ? new Date(sunsetStr) : null;
@@ -4046,13 +4412,11 @@ try{
      // Modell-Mix - ist ein Wert für diese Stunde vorhanden (nur die ersten ca. 60
      // Stunden), wird er automatisch verwendet. Für den Nutzer unsichtbar, welches
      // Modell im Hintergrund geliefert hat - einfach der genaueste verfügbare Wert.
+     // Höhenrichtig kombiniert über claefBlend (siehe dort): Temperatur auf die
+     // echte Talhöhe umgerechnet, Wind bei unpassender Zellhöhe der höhere Wert.
      const claefTal=claefLookup(claefTalMap, t);
      if(claefTal){
-         if(claefTal.temp!==undefined) temp=claefTal.temp;
-         if(claefTal.wind!==undefined) wind=claefTal.wind;
-         if(claefTal.gust!==undefined) gust=claefTal.gust;
-         if(claefTal.rain!==undefined) rain=claefTal.rain;
-         if(claefTal.cape!==undefined) cape=claefTal.cape;
+         ({temp, wind, gust, rain, cape} = claefBlend({temp, wind, gust, rain, cape}, claefTal, claefTalCellElev, baseElev));
      }
      const feelsLike=temp-feelsLikeOffset;
      let dir=Number(h.wind_direction_10m?.[bi]??0);
@@ -4132,13 +4496,14 @@ try{
      let pvis = pH ? Number(pH.visibility?.[bi]) : vis;
      // C-LAEF AlpeAdria (1km) auch für den Gipfel/Zielpunkt - gleiche Logik wie im
      // Tal, automatisch der genaueste verfügbare Wert, keine Kennzeichnung nötig.
+     // Gerade hier wichtig: die Gipfel-Zelle liegt oft mehrere hundert Meter
+     // unter dem Gipfel - claefBlend rechnet die Temperatur auf Gipfelhöhe um und
+     // nimmt beim Wind den ungünstigeren Wert, wenn die Zellhöhe nicht passt.
      const claefPeak=claefLookup(claefPeakMap, t);
      if(claefPeak){
-         if(claefPeak.temp!==undefined) ptemp=claefPeak.temp;
-         if(claefPeak.wind!==undefined) pwind=claefPeak.wind;
-         if(claefPeak.gust!==undefined) pgust=claefPeak.gust;
-         if(claefPeak.rain!==undefined) prain=claefPeak.rain;
-         if(claefPeak.cape!==undefined) pcape=claefPeak.cape;
+         const pb = claefBlend({temp: ptemp, wind: pwind, gust: pgust, rain: prain, cape: pcape},
+                               claefPeak, claefPeakCellElev, hasPeakAlt ? parsedPeakAlt : null);
+         ptemp=pb.temp; pwind=pb.wind; pgust=pb.gust; prain=pb.rain; pcape=pb.cape;
      }
      const pFeelsLike=ptemp-pFeelsLikeOffset;
 
@@ -4334,6 +4699,10 @@ try{
      unsicherheitHinweis = 'Bewertung angehoben, weil die Modelle deutlich auseinanderliegen.';
  }
  const overall = bewertungsScore>=60?'red':bewertungsScore>=30?'orange':'green';
+ // FIX: Die Überschrift "GESAMTRISIKO" kam bisher aus dem NICHT angehobenen Wert
+ // (maxLevel), die Ampelfarbe aus dem angehobenen - bei großer Modellstreuung stand
+ // dadurch z.B. "GESAMTRISIKO: NIEDRIG" unter einer orangen Ampel.
+ maxLevel = overall === 'red' ? 'Hoch' : (overall === 'orange' ? 'Mäßig' : 'Niedrig');
  const tourName = selectedTourTypes.length ? selectedTourTypes.map(t=>TOUR_NAMES[t]).join(' + ') : 'Wetteranalyse';
 
  let warnings = [...warnMap.values()].map(w => w.text);
@@ -4378,7 +4747,7 @@ try{
  const datumStr = startDt.toLocaleDateString('de-DE');
  const startZeitStr = startDt.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
  let html=`<div class="tour-header-card">
-   <div class="tour-header-route">📍 ${startLabel}${peak ? ` <span class="arrow">→</span> ⛰️ ${peak.name}` : ''}</div>
+   <div class="tour-header-route">📍 ${escapeHtml(startLabel)}${peak ? ` <span class="arrow">→</span> ⛰️ ${escapeHtml(peak.name)}` : ''}</div>
    <div class="tour-header-meta">
      <span class="chip">📅 ${datumStr}</span>
      <span class="chip">⏱️ ${startZeitStr} (${duration} Std.)</span>
@@ -4519,6 +4888,9 @@ async function loadPlannedTrackHandoff(){
  try { rohPunkte = JSON.parse(raw); } catch(e){ return; }
  if(!Array.isArray(rohPunkte) || rohPunkte.length < 2) return;
 
+ // Gipfel aus der letzten Sitzung verwerfen - der übernommene Track bestimmt
+ // Start und höchsten Punkt neu (siehe unten).
+ clearPeak();
  gpxTrackForCloud = buildTrackForCloud(rohPunkte);
  computeRouteShape(rohPunkte);
  document.getElementById('gpxUrlParam').value = buildGpxBlobUrlFromTrack(gpxTrackForCloud);
@@ -4885,10 +5257,13 @@ document.getElementById('onboardingOverlay').classList.remove('open');
 window.addEventListener('DOMContentLoaded',()=>{
 enhanceAllSelects();
 localStorage.removeItem('bt_favorites_v5');
+// Gespeicherte Werte VOR setNowTime() lesen - saveState() darin überschreibt sie.
+// (Der synchrone Teil setzt alle Felder sofort; nur die Routenform des Gipfels
+// wird im Hintergrund nachberechnet.)
+restoreState();
 setNowTime();
 updatePushStatusUI();
 document.getElementById('gpxStatus').innerText='';
-clearPeak();
 
 ['startTime','duration'].forEach(id=>{
  const el = document.getElementById(id);
@@ -4901,7 +5276,7 @@ clearPeak();
 if (location.hash === '#activeTour') {
  const target = document.getElementById('pushStatusInfo');
  if (target) target.scrollIntoView({ behavior: 'smooth' });
- loadActiveTourFromCloud();
+ requestActiveTourLoad();
 }
 loadPlannedTrackHandoff();
 });
