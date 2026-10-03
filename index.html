@@ -2301,7 +2301,9 @@ const radius = 15000;
             out body qt;`;
 
 try {
- const data = await fetchOverpass(query);
+ let data;
+ try { data = await fetchOverpass(query); peakCacheSave(lat, lon, data); }
+ catch (e) { data = peakCacheLoad(lat, lon); if (!data) throw e; }
  
  let rawPeaks = data.elements
      .filter(el => el.tags && el.tags.name)
@@ -2355,50 +2357,6 @@ if(selectedPeak) {
  localStorage.setItem('bt5_peak',JSON.stringify(selectedPeak));
 }
 }
-// Gespeicherte Eingaben beim Öffnen wiederherstellen (saveState() schrieb sie bisher
-// nur, nichts las sie je wieder ein). Bewusst NICHT wiederhergestellt:
-// - Startzeit: bleibt "jetzt" (eine alte Zeit würde unbemerkt eine vergangene Tour
-//   bewerten)
-// - GPX-Track: die Blob-Adresse ist nach dem Neuladen ungültig
-// Jeder Schritt einzeln abgesichert - ein kaputter Eintrag setzt nur diesen Wert
-// nicht, die App startet in jedem Fall.
-async function restoreState(){
-try{
- const get = (id) => localStorage.getItem('bt5_'+id);
- const lat = parseFloat(get('lat')), lon = parseFloat(get('lon'));
- if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
-     document.getElementById('locationSearch').value = get('locationSearch') || '';
-     document.getElementById('lat').value = lat;
-     document.getElementById('lon').value = lon;
-     const sLat = parseFloat(get('start_lat')), sLon = parseFloat(get('start_lon'));
-     document.getElementById('start_lat').value = Number.isFinite(sLat) ? sLat : lat;
-     document.getElementById('start_lon').value = Number.isFinite(sLon) ? sLon : lon;
- }
- const dur = get('duration');
- const durEl = document.getElementById('duration');
- if (dur && durEl && [...durEl.options].some(o => o.value === dur)) durEl.value = dur;
- const exp = get('exposureSelect');
- const expEl = document.getElementById('exposureSelect');
- if (exp !== null && expEl && [...expEl.options].some(o => o.value === exp)) expEl.value = exp;
- try {
-     const tt = JSON.parse(get('tourTypes') || 'null');
-     if (Array.isArray(tt)) setSelectedTourTypes(tt);
- } catch (e) {}
- try {
-     const pk = JSON.parse(localStorage.getItem('bt5_peak') || 'null');
-     if (pk && pk.name && Number.isFinite(Number(pk.lat)) && Number.isFinite(Number(pk.lon))
-         && document.getElementById('lat').value) {
-         selectedPeak = { name: String(pk.name), lat: Number(pk.lat), lon: Number(pk.lon),
-                          alt: Number.isFinite(Number(pk.alt)) && Number(pk.alt) > 0 ? Number(pk.alt) : null };
-         renderSelectedPeak();
-         await computeRouteShapeForManualPeak(selectedPeak);
-     }
- } catch (e) { logDebugError('restoreState/peak', e); }
-}catch(e){
- logDebugError('restoreState', e);
-}
-}
-
 function clearSearchField(){
 document.getElementById('locationSearch').value='';
 document.getElementById('locationResultsSelect').style.display='none';
@@ -2856,23 +2814,22 @@ searchMountainsAroundStart();
 // WLAN, unabhängig von der eigentlichen Serverlast. Ein Mirror-Fallback mit Timeout
 // fängt zusätzlich einen hängenden oder überlasteten Server ab.
 async function fetchOverpass(query) {
-// Mehrere Spiegelserver, damit ein überlasteter oder gerade gestörter Server (häufig
-// am Abend / am Wochenende) die Gipfelsuche nicht komplett lahmlegt. Läuft die Runde
-// einmal komplett durch, ohne dass ein Server antwortet, folgt nach kurzer Pause eine
-// zweite. Eine Antwort ohne "elements" (Overpass liefert bei Überlastung teils HTTP 200
-// mit Fehlertext) zählt als Fehlschlag und der nächste Server wird probiert.
+// Alle Spiegelserver GLEICHZEITIG anfragen, der erste brauchbare gewinnt. Nacheinander
+// (wie bisher) addierte sich jeder hängende Server zur Wartezeit - bei einer
+// schwachen Verbindung war die Suche dadurch minutenlang unterwegs oder scheiterte
+// ganz, obwohl ein anderer Server längst geantwortet hätte. Eine Antwort ohne
+// "elements" (Overpass liefert bei Überlastung teils HTTP 200 mit Fehlertext) zählt
+// als Fehlschlag.
 const endpoints = [
  'https://overpass-api.de/api/interpreter',
  'https://overpass.kumi.systems/api/interpreter',
  'https://overpass.private.coffee/api/interpreter',
  'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
 ];
-let lastErr;
-for (let round = 0; round < 2; round++) {
- if (round > 0) await new Promise(r => setTimeout(r, 1500));
- for (const endpoint of endpoints) {
-     const controller = new AbortController();
-     const timer = setTimeout(() => controller.abort(), 9000);
+const controllers = endpoints.map(() => new AbortController());
+const timer = setTimeout(() => controllers.forEach(c => c.abort()), 20000);
+try {
+ const json = await Promise.any(endpoints.map(async (endpoint, i) => {
      try {
          const res = await fetch(endpoint, {
              method: 'POST',
@@ -2881,21 +2838,38 @@ for (let round = 0; round < 2; round++) {
                  'Content-type': 'application/x-www-form-urlencoded',
                  'Accept': 'application/json'
              },
-             signal: controller.signal
+             signal: controllers[i].signal
          });
          if (!res.ok) throw new Error(`Overpass HTTP ${res.status} (${endpoint})`);
-         const json = await res.json();
-         if (!json || !Array.isArray(json.elements)) throw new Error(`Overpass ohne Ergebnisliste (${endpoint})`);
-         return json;
+         const j = await res.json();
+         if (!j || !Array.isArray(j.elements)) throw new Error(`Overpass ohne Ergebnisliste (${endpoint})`);
+         return j;
      } catch (e) {
-         lastErr = e;
          logDebugError('fetchOverpass', e);
-     } finally {
-         clearTimeout(timer);
+         throw e;
      }
- }
+ }));
+ controllers.forEach(c => { try { c.abort(); } catch (e) {} }); // Rest abbrechen
+ return json;
+} catch (e) {
+ throw (e && e.errors && e.errors[0]) || e;
+} finally {
+ clearTimeout(timer);
 }
-throw lastErr;
+}
+
+// Zuletzt erfolgreiche Gipfelliste je Ort merken: Fällt Overpass aus, bleibt die Suche
+// für bereits besuchte Orte trotzdem möglich.
+function peakCacheKey(lat, lon) { return 'bt5_peaks_' + lat.toFixed(2) + '_' + lon.toFixed(2); }
+function peakCacheSave(lat, lon, data) {
+try { localStorage.setItem(peakCacheKey(lat, lon), JSON.stringify({ t: Date.now(), elements: data.elements })); } catch (e) {}
+}
+function peakCacheLoad(lat, lon) {
+try {
+ const c = JSON.parse(localStorage.getItem(peakCacheKey(lat, lon)) || 'null');
+ if (c && Array.isArray(c.elements) && Date.now() - c.t < 30 * 86400000) return { elements: c.elements };
+} catch (e) {}
+return null;
 }
 
 async function searchMountainsAroundStart() {
@@ -2930,7 +2904,9 @@ const radius = 15000;
             out body qt;`;
 
 try {
- const data = await fetchOverpass(query);
+ let data;
+ try { data = await fetchOverpass(query); peakCacheSave(lat, lon, data); }
+ catch (e) { data = peakCacheLoad(lat, lon); if (!data) throw e; }
 
  let rawPeaks = data.elements
      .filter(el => el.tags && el.tags.name)
@@ -5268,13 +5244,14 @@ document.getElementById('onboardingOverlay').classList.remove('open');
 window.addEventListener('DOMContentLoaded',()=>{
 enhanceAllSelects();
 localStorage.removeItem('bt_favorites_v5');
-// Gespeicherte Werte VOR setNowTime() lesen - saveState() darin überschreibt sie.
-// (Der synchrone Teil setzt alle Felder sofort; nur die Routenform des Gipfels
-// wird im Hintergrund nachberechnet.)
-restoreState();
+// Beim Öffnen startet die App bewusst LEER: Ort, Gipfel, Tourart usw. der letzten
+// Abfrage werden nicht wiederhergestellt. Alte Reste im Speicher werden verworfen.
+['locationSearch','lat','lon','start_lat','start_lon','startTime','duration','gpxUrlParam','exposureSelect','tourTypes','peak']
+ .forEach(k => { try { localStorage.removeItem('bt5_'+k); } catch (e) {} });
 setNowTime();
 updatePushStatusUI();
 document.getElementById('gpxStatus').innerText='';
+clearPeak();
 
 ['startTime','duration'].forEach(id=>{
  const el = document.getElementById(id);
