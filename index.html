@@ -2303,7 +2303,7 @@ const radius = 15000;
 try {
  let data;
  try { data = await fetchOverpass(query); peakCacheSave(lat, lon, data); }
- catch (e) { data = peakCacheLoad(lat, lon); if (!data) throw e; }
+ catch (e) { data = peakCacheLoad(lat, lon) || await peakFromPhoton(lat, lon); if (!data) throw e; }
  
  let rawPeaks = data.elements
      .filter(el => el.tags && el.tags.name)
@@ -2858,6 +2858,30 @@ try {
 }
 }
 
+// Zweite, von Overpass unabhängige Gipfelquelle (Photon/Komoot, ebenfalls OSM-Daten).
+// Wird nur genutzt, wenn alle Overpass-Server ausfallen und für den Ort noch keine
+// gespeicherte Liste existiert. Liefert Name und Lage; fehlende Höhen holt die Suche
+// danach wie gewohnt über die Höhen-API nach. Gibt bei jedem Fehler null zurück.
+async function peakFromPhoton(lat, lon) {
+const controller = new AbortController();
+const timer = setTimeout(() => controller.abort(), 15000);
+try {
+ const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&radius=15&limit=50&osm_tag=natural:peak&lang=de`;
+ const res = await fetch(url, { signal: controller.signal, headers: { 'Accept': 'application/json' } });
+ if (!res.ok) throw new Error('Photon HTTP ' + res.status);
+ const j = await res.json();
+ const elements = (j.features || [])
+     .filter(f => f && f.geometry && Array.isArray(f.geometry.coordinates) && f.properties && f.properties.name)
+     .map(f => ({ lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], tags: { name: f.properties.name } }));
+ return elements.length ? { elements } : null;
+} catch (e) {
+ logDebugError('peakFromPhoton', e);
+ return null;
+} finally {
+ clearTimeout(timer);
+}
+}
+
 // Zuletzt erfolgreiche Gipfelliste je Ort merken: Fällt Overpass aus, bleibt die Suche
 // für bereits besuchte Orte trotzdem möglich.
 function peakCacheKey(lat, lon) { return 'bt5_peaks_' + lat.toFixed(2) + '_' + lon.toFixed(2); }
@@ -2906,7 +2930,7 @@ const radius = 15000;
 try {
  let data;
  try { data = await fetchOverpass(query); peakCacheSave(lat, lon, data); }
- catch (e) { data = peakCacheLoad(lat, lon); if (!data) throw e; }
+ catch (e) { data = peakCacheLoad(lat, lon) || await peakFromPhoton(lat, lon); if (!data) throw e; }
 
  let rawPeaks = data.elements
      .filter(el => el.tags && el.tags.name)
