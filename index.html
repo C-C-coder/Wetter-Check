@@ -1397,13 +1397,6 @@ Kartendaten: © <a href="https://www.openstreetmap.org/copyright" target="_blank
  let debugErrorCount = 0;
  const MAX_DEBUG_ERRORS = 25;
 
- // Text aus fremden Quellen (OSM-/Nominatim-Namen, eigene Eingaben, Cloud-Daten)
-// wird an manchen Stellen per innerHTML angezeigt. Ein Name mit "<" oder "&"
-// konnte dadurch die Anzeige zerschießen bzw. HTML/Skript einschleusen.
-function escapeHtml(v) {
-return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 function logDebugError(source, err) {
      if (!isMobileDebugEnabled) return;
      debugErrorCount++;
@@ -1455,6 +1448,13 @@ function logDebugError(source, err) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
 <script>
+// Text aus fremden Quellen (OSM-/Nominatim-Namen, eigene Eingaben, Cloud-Daten)
+// wird an manchen Stellen per innerHTML angezeigt. Ein Name mit "<" oder "&"
+// konnte dadurch die Anzeige zerschießen bzw. HTML/Skript einschleusen.
+function escapeHtml(v) {
+return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 // --- Firebase Initialisierung ---
 const firebaseConfig = {
 apiKey: "AIzaSyADlL7BKaVPgdCH6xSqWEjVqf54q33E9WE",
