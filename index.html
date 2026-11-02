@@ -4071,14 +4071,25 @@ function refineWithHighResModels(hourly, lon) {
  hourly._feinmodell = quelle; // nur zur Fehlersuche
 }
 async function fetchOpenMeteoModels(urlTemplate) {
- let last = null;
- for (const set of OPEN_METEO_MODEL_SETS) {
+// Von der größten zur kleinsten Modellauswahl. Weiter zur nächst kleineren Auswahl geht
+// es bei HTTP 400 (ein Modellname ist ungültig), 429 (Anfragelimit - die kleinere
+// Auswahl verbraucht weniger davon), 5xx (Serverproblem) und Netzwerkfehlern. Nur
+// wenn auch die kleinste Auswahl scheitert, wird der Fehler weitergegeben.
+let last = null, lastErr = null;
+for (const set of OPEN_METEO_MODEL_SETS) {
+ try {
      const r = await fetch(urlTemplate.replace('__MODELS__', set));
-     if (r.ok || r.status !== 400) return r;
-     last = r;
-     logDebugError('Open-Meteo Modelle', new Error('HTTP 400 mit models=' + set + ' - neuer Versuch mit weniger Modellen'));
+     if (r.ok) return r;
+     last = r; lastErr = null;
+     if (r.status !== 400 && r.status !== 429 && r.status < 500) return r;
+     logDebugError('Open-Meteo Modelle', new Error('HTTP ' + r.status + ' mit models=' + set + ' - neuer Versuch mit weniger Modellen'));
+ } catch (e) {
+     lastErr = e;
+     logDebugError('Open-Meteo Modelle', e);
  }
- return last;
+}
+if (last) return last;
+throw lastErr || new Error('Open-Meteo nicht erreichbar');
 }
 
 function windDir(deg){
@@ -4874,7 +4885,10 @@ try{
  // blieb dieser Fehler dadurch komplett unsichtbar, obwohl das Panel aktiviert war.
  console.error('Fehler in analyzeRisk():', e);
  logDebugError('analyzeRisk', e);
- document.getElementById('results').innerHTML='<div class="warning-box">❌ Fehler beim Abrufen der Wetterdaten. Bitte Eingaben überprüfen.</div>'; 
+ // Technische Ursache kurz mitanzeigen, damit sich ein Fehler ohne Debug-Modus eingrenzen lässt.
+ const grund = String((e && e.message) || e || '').slice(0, 220);
+ document.getElementById('results').innerHTML='<div class="warning-box">❌ Fehler beim Abrufen der Wetterdaten. Bitte Eingaben überprüfen.'
+     + (grund ? '<br><small style="opacity:.75;word-break:break-word;">Technische Ursache: ' + escapeHtml(grund) + '</small>' : '') + '</div>'; 
 }
 }
 
