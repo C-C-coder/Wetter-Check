@@ -2827,6 +2827,7 @@ const endpoints = [
  'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
 ];
 const controllers = endpoints.map(() => new AbortController());
+let fertig = false;
 const timer = setTimeout(() => controllers.forEach(c => c.abort()), 20000);
 try {
  const json = await Promise.any(endpoints.map(async (endpoint, i) => {
@@ -2845,10 +2846,12 @@ try {
          if (!j || !Array.isArray(j.elements)) throw new Error(`Overpass ohne Ergebnisliste (${endpoint})`);
          return j;
      } catch (e) {
-         logDebugError('fetchOverpass', e);
+         // Vom Gewinner selbst abgebrochene Anfragen sind kein Fehler und werden nicht gemeldet.
+         if (!fertig) logDebugError('fetchOverpass', e);
          throw e;
      }
  }));
+ fertig = true;
  controllers.forEach(c => { try { c.abort(); } catch (e) {} }); // Rest abbrechen
  return json;
 } catch (e) {
