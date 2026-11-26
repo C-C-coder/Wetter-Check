@@ -1124,7 +1124,7 @@
          <div class="help-topic">
              <h3>🧮 Wie funktioniert die Risiko-Engine?</h3>
              <p>Für jede Stunde der Tour wird ein Punktwert berechnet (0-100), getrennt für Tal und Gipfel/Ziel - der höhere der beiden bestimmt die Ampel dieser Stunde (Grün &lt;30, Gelb 30-59, Rot ab 60), und die schlechteste Stunde der ganzen Tour bestimmt das Gesamtrisiko oben.<br><br>
-             <strong>Was einfließt:</strong> Wind/Böen (gestaffelt nach Stärke, mit physikalischer Untergrenze - ab 80 km/h mindestens "Mäßig" wegen Astbruch, ab 100 km/h mindestens "Hoch" wegen Baumsturz, unabhängig von allen anderen Einstellungen), Gewitter (Wettercode + CAPE-Wert + Regenwahrscheinlichkeit), Regen/nasser Fels (ab 0,2mm/h steigend, bei Klettersteig/Fels schon ab 0,1mm ein eigener Rutschgefahr-Malus), Sicht (Schwelle abhängig von der Tourart - exponierte Touren wie Klettersteig/Grat/Hochtour reagieren empfindlicher als einfache Wanderungen), Schneeverfrachtung bei Sturm (nur Schitour/Schneeschuh), gefühlte Temperatur (Windchill bei Kälte, ab 30°C auch Hitze).<br><br>
+             <strong>Was einfließt:</strong> Wind/Böen (gestaffelt nach Stärke, mit physikalischer Untergrenze - ab 80 km/h mindestens "Mäßig" wegen Astbruch, ab 100 km/h mindestens "Hoch" wegen Baumsturz, unabhängig von allen anderen Einstellungen), Gewitter (Wettercode + CAPE-Wert + Niederschlagswahrscheinlichkeit), Regen/nasser Fels (ab 0,2mm/h steigend, bei Klettersteig/Fels schon ab 0,1mm ein eigener Rutschgefahr-Malus), Sicht (Schwelle abhängig von der Tourart - exponierte Touren wie Klettersteig/Grat/Hochtour reagieren empfindlicher als einfache Wanderungen), Schneeverfrachtung bei Sturm (nur Schitour/Schneeschuh), gefühlte Temperatur (Windchill bei Kälte, ab 30°C auch Hitze).<br><br>
              <strong>Verstärkt durch:</strong> die tatsächliche Höhe (höher = empfindlicher gegenüber Wind/Gewitter, gedeckelt bei 2800m) und die gewählte Tourart (Klettersteig/Grat/Hochtour/Fels gewichten Wind/Gewitter/Nässe/Sicht stärker als eine einfache Wanderung). Die "Exposition"-Auswahl verstärkt (exponiert) oder dämpft (geschützt) diesen Aufschlag zusätzlich - kann die physikalische Wind-Untergrenze oben aber nie unterschreiten.</p>
          </div>
          <div class="help-topic">
@@ -4000,6 +4000,18 @@ else if (finalScore >= 30) level = 'Mäßig';
 return { score: finalScore, level: level };
 }
 
+// Warnung Grödel/Steigeisen/Harscheisen je nach Tourenart (Schnee/Eis im Wetter ODER liegender Schnee).
+function tractionWarning(tourTypes) {
+ const ernst = tourTypes.some(t=>['klettersteig','grat','hochtour','gletscher','klettern'].includes(t));
+ const nurSki = tourTypes.length>0 && tourTypes.every(t=>t==='ski');
+ return {kind:'traction', severity: ernst ? 2 : 1,
+   text: nurSki
+     ? '🧗 <strong>Schnee und Eis:</strong> Harscheisen mitnehmen, auf vereisten Hängen können Steigeisen nötig sein.'
+     : (ernst
+         ? '🧗 <strong>Schnee und Eis:</strong> Steigeisen mitnehmen (auf Fels, Eis und im steilen Gelände), je nach Bedingungen reichen leichte Grödel nicht aus.'
+         : '🧗 <strong>Schnee und Eis:</strong> je nach Bedingungen Grödel oder Steigeisen mitnehmen – auf vereisten oder steilen Wegen kann es sonst rutschig werden.')};
+}
+
 function tourWarnings(weather, tourTypes, isPeak) {
 const a = [];
 const isKlettersteigOrClimb = tourTypes.some(t=>['klettersteig','klettern'].includes(t));
@@ -4054,16 +4066,7 @@ if (weather.ice) {
 }
 // Schnee/Eis auf dem Weg: Grödel bzw. Steigeisen. Bei Klettersteig/Grat/Hochtour/Fels ist
 // die Lage ernster (Steigeisen), bei Schitour sind es Harscheisen.
-if (weather.ice || weather.snow >= 0.2) {
- const ernst = tourTypes.some(t=>['klettersteig','grat','hochtour','gletscher','klettern'].includes(t));
- const nurSki = tourTypes.length>0 && tourTypes.every(t=>t==='ski');
- a.push({kind:'traction', severity: ernst ? 2 : 1,
-   text: nurSki
-     ? '🧗 <strong>Schnee und Eis:</strong> Harscheisen mitnehmen, auf vereisten Hängen können Steigeisen nötig sein.'
-     : (ernst
-         ? '🧗 <strong>Schnee und Eis:</strong> Steigeisen mitnehmen (auf Fels, Eis und im steilen Gelände), je nach Bedingungen reichen leichte Grödel nicht aus.'
-         : '🧗 <strong>Schnee und Eis:</strong> je nach Bedingungen Grödel oder Steigeisen mitnehmen – auf vereisten oder steilen Wegen kann es sonst rutschig werden.')});
-}
+if (weather.ice || weather.snow >= 0.2) a.push(tractionWarning(tourTypes));
 return a;
 }
 
@@ -4842,7 +4845,7 @@ try{
      const nebelTxt = (flag) => flag
          ? '<br><span style="color:#fbbf24">🌫️ <strong>in Wolken</strong> – Sicht am Boden stark eingeschränkt</span>' : '';
 
-     const peakBox = hasPeakAlt ? `<div><div class="weather-box-title">${secondIcon} ${secondLabel} (${Math.round(parsedPeakAlt)}m)</div>🌡️ ${ptemp.toFixed(1)}°C${Math.abs(ptemp-pFeelsLike)>=1?` (gefühlt ${pFeelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(pwind)} km/h (Böen: ${Math.round(pgust)} km/h)<br>🧭 ${pDirTxt}<br>🌦️ ${conditionHint(peakWeather)}<br>${precipLine(prain, ptemp, pcode, psnow)}<br>💧 Regenwahrscheinlichkeit: ${Math.round(pprob)}%<br>👁️ Sicht: ${pvisTxt}<br>☁️ Wolkenbasis: ca. ${peakCloudBaseMsl}m${nebelTxt(imNebelGipfel)}</div>` : '';
+     const peakBox = hasPeakAlt ? `<div><div class="weather-box-title">${secondIcon} ${secondLabel} (${Math.round(parsedPeakAlt)}m)</div>🌡️ ${ptemp.toFixed(1)}°C${Math.abs(ptemp-pFeelsLike)>=1?` (gefühlt ${pFeelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(pwind)} km/h (Böen: ${Math.round(pgust)} km/h)<br>🧭 ${pDirTxt}<br>🌦️ ${conditionHint(peakWeather)}<br>${precipLine(prain, ptemp, pcode, psnow)}<br>💧 Niederschlagswahrscheinlichkeit: ${Math.round(pprob)}%<br>👁️ Sicht: ${pvisTxt}<br>☁️ Wolkenbasis: ca. ${peakCloudBaseMsl}m${nebelTxt(imNebelGipfel)}</div>` : '';
 
      // Zwischenpunkt nur zeigen, wenn er tatsächlich der kritischste ist.
      const routeBox = (routeWorst && routeWorst.score > slotMaxScore0 + 5)
@@ -4854,7 +4857,7 @@ try{
 
      const cls = slotMaxScore>=60?'status-red':slotMaxScore>=30?'status-orange':'status-green';
 
-     slots+=`<div class="slot ${cls}" style="animation-delay:${Math.min(i,12)*50}ms"><div style="display:flex;justify-content:space-between"><strong>⏱️ ${t.replace('T',' ')} Uhr</strong><span>Risiko: <strong>${slotMaxScore>=60?'Hoch':(slotMaxScore>=30?'Mäßig':'Niedrig')}</strong></span></div><div class="weather-split${hasPeakAlt?'':' single-col'}"><div><div class="weather-box-title">📍 Tal (${Math.round(baseElev)}m)</div>🌡️ ${temp.toFixed(1)}°C${Math.abs(temp-feelsLike)>=1?` (gefühlt ${feelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(wind)} km/h (Böen: ${Math.round(gust)} km/h)<br>🧭 ${dirTxt}<br>🌦️ ${hint}<br>${precipLine(rain, temp, code, snow)}<br>💧 Regenwahrscheinlichkeit: ${Math.round(prob)}%<br>👁️ Sicht: ${visTxt}<br>☁️ Wolkenbasis: ca. ${valleyCloudBaseMsl}m${nebelTxt(imNebelTal)}</div>${peakBox}</div>${routeBox}<div style="font-size:11px">Bewölkung: ${Math.round(cloud)}%${snowHeight !== null ? ` · Schneefallgrenze: ${Math.round(snowHeight)}m` : ''}</div></div>`;
+     slots+=`<div class="slot ${cls}" style="animation-delay:${Math.min(i,12)*50}ms"><div style="display:flex;justify-content:space-between"><strong>⏱️ ${t.replace('T',' ')} Uhr</strong><span>Risiko: <strong>${slotMaxScore>=60?'Hoch':(slotMaxScore>=30?'Mäßig':'Niedrig')}</strong></span></div><div class="weather-split${hasPeakAlt?'':' single-col'}"><div><div class="weather-box-title">📍 Tal (${Math.round(baseElev)}m)</div>🌡️ ${temp.toFixed(1)}°C${Math.abs(temp-feelsLike)>=1?` (gefühlt ${feelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(wind)} km/h (Böen: ${Math.round(gust)} km/h)<br>🧭 ${dirTxt}<br>🌦️ ${hint}<br>${precipLine(rain, temp, code, snow)}<br>💧 Niederschlagswahrscheinlichkeit: ${Math.round(prob)}%<br>👁️ Sicht: ${visTxt}<br>☁️ Wolkenbasis: ca. ${valleyCloudBaseMsl}m${nebelTxt(imNebelTal)}</div>${peakBox}</div>${routeBox}<div style="font-size:11px">Bewölkung: ${Math.round(cloud)}%${snowHeight !== null ? ` · Schneefallgrenze: ${Math.round(snowHeight)}m` : ''}</div></div>`;
  }
 
  // FIX: Bisher gab es pro Ort (Tal/Gipfel) eine eigene Sichtwarnung, jeweils mit
@@ -4912,6 +4915,21 @@ try{
  maxLevel = overall === 'red' ? 'Hoch' : (overall === 'orange' ? 'Mäßig' : 'Niedrig');
  const tourName = selectedTourTypes.length ? selectedTourTypes.map(t=>TOUR_NAMES[t]).join(' + ') : 'Wetteranalyse';
 
+ // Schneehöhe (nur wenn per Schalter aktiviert): Tal und Gipfel/Ziel getrennt. Liegt irgendwo
+ // Schnee, kommt auch ohne aktuellen Schneefall der Hinweis auf Grödel/Steigeisen.
+ let sdTal = null, sdGipfel = null;
+ if (snowDepthEnabled()) {
+     const endPt = hasPeakPoint ? routePoints[routePoints.length - 1] : null;
+     [sdTal, sdGipfel] = await Promise.all([
+         fetchSnowDepth(talLat, talLon).catch(()=>null),
+         endPt ? fetchSnowDepth(endPt.lat, endPt.lon).catch(()=>null) : Promise.resolve(null)
+     ]);
+     if (sdTal || sdGipfel) {
+         const tw = tractionWarning(selectedTourTypes);
+         const prev = warnMap.get('traction');
+         if (!prev || tw.severity > prev.severity) warnMap.set('traction', tw);
+     }
+ }
  let warnings = [...warnMap.values()].map(w => w.text);
 
  // Das Fazit nennt nur Faktoren, die in diesem Tourfenster tatsächlich auftreten
@@ -5039,18 +5057,10 @@ try{
  if(!maxThunderRisk && maxGust < 45 && !firstRainTime) {
      summaryBox += `✅ Wetterbedingungen im Zeitraum durchgehend <strong>stabil und ruhig</strong>.`;
  }
- if (snowDepthEnabled()) {
-     // Tal und Gipfel/Ziel getrennt (bei Abstieg/Flach gelten die dort ermittelten Punkte, siehe routePoints).
-     const endPt = hasPeakPoint ? routePoints[routePoints.length - 1] : null;
-     const [sdTal, sdGipfel] = await Promise.all([
-         fetchSnowDepth(talLat, talLon).catch(()=>null),
-         endPt ? fetchSnowDepth(endPt.lat, endPt.lon).catch(()=>null) : Promise.resolve(null)
-     ]);
-     if (sdTal || sdGipfel) {
-         summaryBox += `<br>`;
-         if (sdTal) summaryBox += `❄️ Schneehöhe Tal (${Math.round(baseElev)}m): <strong>${snowDepthText(sdTal)}</strong><br>`;
-         if (sdGipfel) summaryBox += `❄️ Schneehöhe ${escapeHtml(secondLabel)}${hasPeakAlt ? ' ('+Math.round(parsedPeakAlt)+'m)' : ''}: <strong>${snowDepthText(sdGipfel)}</strong><br>`;
-     }
+ if (sdTal || sdGipfel) {
+     summaryBox += `<br>`;
+     if (sdTal) summaryBox += `❄️ Schneehöhe Tal (${Math.round(baseElev)}m): <strong>${snowDepthText(sdTal)}</strong><br>`;
+     if (sdGipfel) summaryBox += `❄️ Schneehöhe ${escapeHtml(secondLabel)}${hasPeakAlt ? ' ('+Math.round(parsedPeakAlt)+'m)' : ''}: <strong>${snowDepthText(sdGipfel)}</strong><br>`;
  }
  summaryBox += `</div>`;
  html += summaryBox;
