@@ -4052,6 +4052,18 @@ if (tourTypes.includes('ski')) {
 if (weather.ice) {
  a.push({kind:'ice', severity:1, text:'🧊 <strong>Glatteis:</strong> Gefrierende Nässe.'});
 }
+// Schnee/Eis auf dem Weg: Grödel bzw. Steigeisen. Bei Klettersteig/Grat/Hochtour/Fels ist
+// die Lage ernster (Steigeisen), bei Schitour sind es Harscheisen.
+if (weather.ice || weather.snow >= 0.2) {
+ const ernst = tourTypes.some(t=>['klettersteig','grat','hochtour','gletscher','klettern'].includes(t));
+ const nurSki = tourTypes.length>0 && tourTypes.every(t=>t==='ski');
+ a.push({kind:'traction', severity: ernst ? 2 : 1,
+   text: nurSki
+     ? '🧗 <strong>Schnee und Eis:</strong> Harscheisen mitnehmen, auf vereisten Hängen können Steigeisen nötig sein.'
+     : (ernst
+         ? '🧗 <strong>Schnee und Eis:</strong> Steigeisen mitnehmen (auf Fels, Eis und im steilen Gelände), je nach Bedingungen reichen leichte Grödel nicht aus.'
+         : '🧗 <strong>Schnee und Eis:</strong> je nach Bedingungen Grödel oder Steigeisen mitnehmen – auf vereisten oder steilen Wegen kann es sonst rutschig werden.')});
+}
 return a;
 }
 
@@ -4573,6 +4585,7 @@ try{
  let maxGust = 0, gustTime = "";
  let firstRainTime = null, firstRainKind = 'rain';
  let maxThunderRisk = false, thunderTime = "";
+ let anySnow = false, anyIce = false, anyRain = false; // tatsächliche Gefahrenfaktoren für den Fazit-Text
 
  for(let i=0; i<duration; i++){
      const bi=idx+i; 
@@ -4793,6 +4806,12 @@ try{
      // von 22:00 bis 02:00 die Nachtstunden vor die Abendstunden und zerreißt
      // einen zusammenhängenden Zeitraum in zwei Blöcke. Alpine Starts liegen
      // regelmäßig vor Mitternacht.
+     [valleyWeather, hasPeakAlt ? peakWeather : null, routeWorst ? routeWorst.w : null].forEach(w => {
+         if (!w) return;
+         if (w.snow >= 0.2) anySnow = true;
+         if (w.ice) anyIce = true;
+         if (w.rain >= 0.2 && !(w.snow >= 0.2)) anyRain = true;
+     });
      sammleWarnungen(tourWarnings(valleyWeather, selectedTourTypes, false));
      if(hasPeakAlt) sammleWarnungen(tourWarnings(peakWeather, selectedTourTypes, routeShape.secondIsPeak));
      if(routeWorst && routeWorst.score > slotMaxScore0) {
@@ -4895,7 +4914,22 @@ try{
 
  let warnings = [...warnMap.values()].map(w => w.text);
 
- let summaryText = overall==='red'?'Erhöhte alpine Gefahren (Gewitter, Nässe, Sturm).':(overall==='orange'?'Anspruchsvolle Bedingungen mit Wetterumschwüngen im Tourfenster.':'Stabile alpine Bedingungen.');
+ // Das Fazit nennt nur Faktoren, die in diesem Tourfenster tatsächlich auftreten
+ // (vorher stand pauschal "Gewitter, Nässe, Sturm" - auch bei Schneefall und Nebel ohne Gewitter).
+ const gefahrenListe = [];
+ if (maxThunderRisk) gefahrenListe.push('Gewitter');
+ if (maxGust >= 80) gefahrenListe.push('Sturmböen');
+ else if (maxGust >= 60) gefahrenListe.push('starke Böen');
+ if (anySnow) gefahrenListe.push('Schneefall');
+ if (anyRain) gefahrenListe.push('Regen/Nässe');
+ if (anyIce) gefahrenListe.push('Glätte/Eis');
+ if (fogMinElev !== null || fogWorstVis < Infinity || fogAnyCodeOnly) gefahrenListe.push(fogWorstVis < visibilityThresholds(selectedTourTypes).rot ? 'sehr schlechte Sicht' : 'eingeschränkte Sicht');
+ const gefahrenTxt = gefahrenListe.length ? ' (' + gefahrenListe.join(', ') + ')' : '';
+ let summaryText = overall==='red'
+     ? 'Erhöhte alpine Gefahren' + (gefahrenTxt || ' (Gewitter, Nässe, Sturm)') + '.'
+     : (overall==='orange'
+         ? 'Anspruchsvolle Bedingungen' + (gefahrenTxt || ' mit Wetterumschwüngen im Tourfenster') + '.'
+         : 'Stabile alpine Bedingungen.');
  // Wurde die Stufe wegen Modellstreuung angehoben, muss das im Fazit stehen und
  // nicht als Fußnote in einer anderen Box. Sonst wirkt die Ampel willkürlich:
  // dieselbe Wetterlage, einmal orange, einmal rot, ohne erkennbaren Grund.
