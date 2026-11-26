@@ -3351,7 +3351,7 @@ return {times:geoSphereTimestamps(data,f),values:geoSphereValues(f,'rr')};
 
 async function fetchLiveCenter(lat,lon){
 const currentUrl='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
-'&current=temperature_2m,apparent_temperature,precipitation,rain,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m'+
+'&current=temperature_2m,apparent_temperature,precipitation,rain,snowfall,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m'+
 '&timezone=auto&wind_speed_unit=kmh';
 const [c,n]=await Promise.all([
  fetch(currentUrl,{cache:'no-store'}),
@@ -3413,7 +3413,28 @@ return points.map((p,i)=>{
 }).filter(s=>s.nc.times.length);
 }
 
-function getRainDescription(amount) {
+// Art des Niederschlags: WMO-Schneecodes bzw. gemeldeter Schneefall zaehlen immer als Schnee,
+// sonst entscheidet die Lufttemperatur (<=0,5 Grad Schnee, bis 1,5 Grad Schneeregen).
+// Vorher stand ueberall "Regen", auch bei -1 Grad und dichtem Schneefall.
+function precipKind(temp, code, snowCm) {
+if ([71,73,75,77,85,86].includes(Number(code)) || Number(snowCm) >= 0.1) return 'snow';
+if ([68,69,83,84].includes(Number(code))) return 'sleet';
+if (Number.isFinite(Number(temp))) {
+ if (Number(temp) <= 0.5) return 'snow';
+ if (Number(temp) <= 1.5) return 'sleet';
+}
+return 'rain';
+}
+function precipIcon(kind) { return kind === 'snow' ? '❄️' : kind === 'sleet' ? '🌨️' : '🌧️'; }
+
+function getRainDescription(amount, kind) {
+if (kind === 'snow') {
+ if (amount < 0.2) return "Schneegriesel";
+ if (amount < 2.0) return "leichter Schneefall";
+ if (amount < 6.0) return "mäßiger Schneefall";
+ return "starker Schneefall";
+}
+if (kind === 'sleet') return "Schneeregen";
 if (amount < 0.2) return "Nieselregen";
 if (amount < 2.0) return "leichter Regen";
 if (amount < 6.0) return "moderater Regen";
@@ -3587,28 +3608,31 @@ try{
  const samples=await fetchLiveDirectionSamples(lat,lon);
  const arrival=liveFindArrival(center.nc,samples);
  const c=center.current;
- const rainNow=Number(c.rain||0);
+ const pKind=precipKind(Number(c.temperature_2m), c.weather_code, c.snowfall);
+ const rainNow=Number(pKind==='rain' ? (c.rain||0) : (c.precipitation||c.rain||0));
  const gust=Number(c.wind_gusts_10m||0);
  
  let html='<div class="live-tour-head"><strong><span class="live-dot"></span>Live-Tour-Wetter</strong><span class="live-muted">Stand '+new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'</span></div>';
- html+='<div class="live-row"><span>🌡️ '+(Number.isFinite(Number(c.temperature_2m))?Number(c.temperature_2m).toFixed(1):'–')+' °C</span><span>🌧️ Regen jetzt: '+rainNow.toFixed(1)+' mm</span></div>';
+ html+='<div class="live-row"><span>🌡️ '+(Number.isFinite(Number(c.temperature_2m))?Number(c.temperature_2m).toFixed(1):'–')+' °C</span><span>'+precipIcon(pKind)+' '+(pKind==='snow'?'Schnee':pKind==='sleet'?'Schneeregen':'Regen')+' jetzt: '+rainNow.toFixed(1)+' mm</span></div>';
  html+='<div class="live-row"><span>💨 Böen: '+(Number.isFinite(gust)?Math.round(gust):'–')+' km/h</span><span>📍 '+(usedGps?'GPS-Position':'Geschätzte Position')+'</span></div>';
  
  if(arrival){
      const mins = liveMinutesUntil(arrival.time);
      const thunder = Boolean(arrival.thunder);
-     const rainDesc = getRainDescription(arrival.amount);
+     const rainDesc = getRainDescription(arrival.amount, pKind);
+     const pIcon = precipIcon(pKind);
+     const pStart = pKind==='snow' ? 'Schneefall fängt an ' : pKind==='sleet' ? 'Schneeregen fängt an ' : 'Regen fängt an ';
 
      if(arrival.kind==='now'){
-         html+='<div style="margin-top:9px"><strong>'+ (thunder?'⚡ Gewitter ':'🌧️ Regen fängt an ') +' ('+rainDesc+') erreicht Standort.</strong></div>';
+         html+='<div style="margin-top:9px"><strong>'+ (thunder?'⚡ Gewitter ':pIcon+' '+pStart) +' ('+rainDesc+') erreicht Standort.</strong></div>';
          const key='now-'+Math.floor(Date.now()/900000);
          if(key!==liveLastAlertKey){
-             liveNotify(thunder?'⚡ Gewitterzelle am Standort':'🌧️ Regen am Standort', 'Aktuell wird ' + rainDesc + ' am Tourstandort erfasst.');
+             liveNotify(thunder?'⚡ Gewitterzelle am Standort':pIcon+' '+(pKind==='snow'?'Schneefall':pKind==='sleet'?'Schneeregen':'Regen')+' am Standort', 'Aktuell wird ' + rainDesc + ' am Tourstandort erfasst.');
              liveLastAlertKey=key;
          }
          liveShowStatus(html,thunder?'live-danger':'live-alert');
      }else{
-         const prefix = (arrival.amount < 0.2) ? 'Nieselregen' : 'Regenfront';
+         const prefix = pKind==='snow' ? (arrival.amount < 0.2 ? 'Schneegriesel' : 'Schneefront') : pKind==='sleet' ? 'Schneeregen' : ((arrival.amount < 0.2) ? 'Nieselregen' : 'Regenfront');
          let windowMin = Math.max(0, mins - 10);
          let windowMax = mins + 10;
          let etaText = `ca. ${windowMin}–${windowMax} Min.`;
@@ -3909,6 +3933,13 @@ if (weather.ice) {
 return a;
 }
 
+// Zeile "Niederschlag" je Stunde: Symbol und Wort passen zur Art (Schnee/Schneeregen/Regen).
+function precipLine(mm, temp, code, snowCm) {
+const k = (mm >= 0.1 || snowCm >= 0.1) ? precipKind(temp, code, snowCm) : 'rain';
+const wort = k === 'snow' ? 'Schnee ' : k === 'sleet' ? 'Schneeregen ' : '';
+return precipIcon(k) + ' ' + wort + mm.toFixed(1) + 'mm';
+}
+
 function conditionHint(d){
 // FIX: Die Gesamtbewertung stuft ein Gewitter auch dann ein, wenn nur die
 // Labilitätsenergie hoch ist (cape >= 1000 bei prob >= 30) - der Stundentext
@@ -3920,12 +3951,21 @@ if(d.cape>=1000 && d.prob>=30) return 'Gewitterneigung (labile Luft)';
 // Nebel vor Regen prüfen: Wer in der Wolke steht, hat ein Orientierungsproblem,
 // und das wiegt am Grat schwerer als die Nässe. Vorher konnte "Regen / Nässe"
 // den Nebelhinweis verdecken.
-if([45,48].includes(d.code) || (d.vis>0&&d.vis<1000)) return 'Nebel / Sicht unter 1km';
+// Fällt dabei Niederschlag, steht auch die Art (Schnee/Regen) da - bei -1 Grad stand hier
+// nur "Nebel", der Schneefall ging im Text unter.
+const pk = (d.rain>=.1 || d.snow>=.1) ? precipKind(d.temp, d.code, d.snow) : null;
+if([45,48].includes(d.code) || (d.vis>0&&d.vis<1000)) {
+ if (pk==='snow') return 'Schneefall / Sicht unter 1km';
+ if (pk==='sleet') return 'Schneeregen / Sicht unter 1km';
+ return 'Nebel / Sicht unter 1km';
+}
 // FIX: Bezeichnungen an die Ampel angeglichen. Bei 85 km/h stand hier
 // "Kräftige Böen", waehrend die Ampel "Sturmböen" meldete - dieselbe Lage
 // unter zwei Namen. Ebenso beim Schnee.
 if(d.snow>=1) return 'Kräftiger Schneefall';
 if(d.snow>=0.2) return 'Schneefall';
+if(pk==='snow') return d.rain>=2 ? 'Kräftiger Schneefall' : 'Schneefall';
+if(pk==='sleet') return 'Schneeregen';
 if(d.rain>=4) return 'Starkregen';
 if(d.rain>=.1) return 'Regen / Nässe';
 if(d.gust>=80) return 'Sturmböen';
@@ -4409,7 +4449,7 @@ try{
  }
 
  let maxGust = 0, gustTime = "";
- let firstRainTime = null;
+ let firstRainTime = null, firstRainKind = 'rain';
  let maxThunderRisk = false, thunderTime = "";
 
  for(let i=0; i<duration; i++){
@@ -4572,6 +4612,7 @@ try{
      // widersprüchliche Aussagen. Jetzt einheitlich >= 0.1.
      if (!firstRainTime && (rain >= 0.1 || (hasPeakAlt && prain >= 0.1))) {
          firstRainTime = t.replace('T', ' ');
+     firstRainKind = (rain >= 0.1 || snow >= 0.1) ? precipKind(temp, code, snow) : precipKind(ptemp, pcode, psnow);
      }
      
      if ([95,96,99].includes(code) || (cape >= 1000 && prob >= 30) || (hasPeakAlt && ([95,96,99].includes(pcode) || (pcape >= 1000 && pprob >= 30)))) {
@@ -4660,7 +4701,7 @@ try{
      const nebelTxt = (flag) => flag
          ? '<br><span style="color:#fbbf24">🌫️ <strong>in Wolken</strong> – Sicht am Boden stark eingeschränkt</span>' : '';
 
-     const peakBox = hasPeakAlt ? `<div><div class="weather-box-title">${secondIcon} ${secondLabel} (${Math.round(parsedPeakAlt)}m)</div>🌡️ ${ptemp.toFixed(1)}°C${Math.abs(ptemp-pFeelsLike)>=1?` (gefühlt ${pFeelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(pwind)} km/h (Böen: ${Math.round(pgust)} km/h)<br>🧭 ${pDirTxt}<br>🌦️ ${conditionHint(peakWeather)}<br>🌧️ ${prain.toFixed(1)}mm<br>💧 Regenwahrscheinlichkeit: ${Math.round(pprob)}%<br>👁️ Sicht: ${pvisTxt}<br>☁️ Wolkenbasis: ca. ${peakCloudBaseMsl}m${nebelTxt(imNebelGipfel)}</div>` : '';
+     const peakBox = hasPeakAlt ? `<div><div class="weather-box-title">${secondIcon} ${secondLabel} (${Math.round(parsedPeakAlt)}m)</div>🌡️ ${ptemp.toFixed(1)}°C${Math.abs(ptemp-pFeelsLike)>=1?` (gefühlt ${pFeelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(pwind)} km/h (Böen: ${Math.round(pgust)} km/h)<br>🧭 ${pDirTxt}<br>🌦️ ${conditionHint(peakWeather)}<br>${precipLine(prain, ptemp, pcode, psnow)}<br>💧 Regenwahrscheinlichkeit: ${Math.round(pprob)}%<br>👁️ Sicht: ${pvisTxt}<br>☁️ Wolkenbasis: ca. ${peakCloudBaseMsl}m${nebelTxt(imNebelGipfel)}</div>` : '';
 
      // Zwischenpunkt nur zeigen, wenn er tatsächlich der kritischste ist.
      const routeBox = (routeWorst && routeWorst.score > slotMaxScore0 + 5)
@@ -4672,7 +4713,7 @@ try{
 
      const cls = slotMaxScore>=60?'status-red':slotMaxScore>=30?'status-orange':'status-green';
 
-     slots+=`<div class="slot ${cls}" style="animation-delay:${Math.min(i,12)*50}ms"><div style="display:flex;justify-content:space-between"><strong>⏱️ ${t.replace('T',' ')} Uhr</strong><span>Risiko: <strong>${slotMaxScore>=60?'Hoch':(slotMaxScore>=30?'Mäßig':'Niedrig')}</strong></span></div><div class="weather-split${hasPeakAlt?'':' single-col'}"><div><div class="weather-box-title">📍 Tal (${Math.round(baseElev)}m)</div>🌡️ ${temp.toFixed(1)}°C${Math.abs(temp-feelsLike)>=1?` (gefühlt ${feelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(wind)} km/h (Böen: ${Math.round(gust)} km/h)<br>🧭 ${dirTxt}<br>🌦️ ${hint}<br>🌧️ ${rain.toFixed(1)}mm<br>💧 Regenwahrscheinlichkeit: ${Math.round(prob)}%<br>👁️ Sicht: ${visTxt}<br>☁️ Wolkenbasis: ca. ${valleyCloudBaseMsl}m${nebelTxt(imNebelTal)}</div>${peakBox}</div>${routeBox}<div style="font-size:11px">Bewölkung: ${Math.round(cloud)}%${snowHeight !== null ? ` · Schneefallgrenze: ${Math.round(snowHeight)}m` : ''}</div></div>`;
+     slots+=`<div class="slot ${cls}" style="animation-delay:${Math.min(i,12)*50}ms"><div style="display:flex;justify-content:space-between"><strong>⏱️ ${t.replace('T',' ')} Uhr</strong><span>Risiko: <strong>${slotMaxScore>=60?'Hoch':(slotMaxScore>=30?'Mäßig':'Niedrig')}</strong></span></div><div class="weather-split${hasPeakAlt?'':' single-col'}"><div><div class="weather-box-title">📍 Tal (${Math.round(baseElev)}m)</div>🌡️ ${temp.toFixed(1)}°C${Math.abs(temp-feelsLike)>=1?` (gefühlt ${feelsLike.toFixed(1)}°C)`:''}<br>💨 Wind: ${Math.round(wind)} km/h (Böen: ${Math.round(gust)} km/h)<br>🧭 ${dirTxt}<br>🌦️ ${hint}<br>${precipLine(rain, temp, code, snow)}<br>💧 Regenwahrscheinlichkeit: ${Math.round(prob)}%<br>👁️ Sicht: ${visTxt}<br>☁️ Wolkenbasis: ca. ${valleyCloudBaseMsl}m${nebelTxt(imNebelTal)}</div>${peakBox}</div>${routeBox}<div style="font-size:11px">Bewölkung: ${Math.round(cloud)}%${snowHeight !== null ? ` · Schneefallgrenze: ${Math.round(snowHeight)}m` : ''}</div></div>`;
  }
 
  // FIX: Bisher gab es pro Ort (Tal/Gipfel) eine eigene Sichtwarnung, jeweils mit
@@ -4834,7 +4875,7 @@ try{
      summaryBox += `💨 <strong>Spitzenböen bis ${Math.round(maxGust)} km/h</strong> (um ca. ${gustTime.split(' ')[1]} Uhr).<br>`;
  }
  if (firstRainTime) {
-     summaryBox += `🌧️ <strong>Niederschlag</strong> erwartet ab ca. ${firstRainTime.split(' ')[1]} Uhr.<br>`;
+     summaryBox += `${precipIcon(firstRainKind)} <strong>${firstRainKind==='snow'?'Schneefall':firstRainKind==='sleet'?'Schneeregen':'Niederschlag'}</strong> erwartet ab ca. ${firstRainTime.split(' ')[1]} Uhr.<br>`;
  } else if (!maxThunderRisk) {
      summaryBox += `✅ Niederschlag im Tourverlauf derzeit <strong>unwahrscheinlich</strong>.<br>`;
  }
