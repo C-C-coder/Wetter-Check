@@ -1309,6 +1309,10 @@
 </div>
 
 <div class="card-section">
+ <label class="tour-checkbox" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="showSnowDepth" onchange="toggleSnowDepth(this.checked)"> <span>❄️ Schneehöhe anzeigen (optional)<br><span style="font-size:11px;opacity:.7">Nur wenn der Wert höchstens 48 h alt ist; in Österreich GeoSphere-Analyse, sonst Modellwert.</span></span></label>
+</div>
+
+<div class="card-section">
  <label>🏔️ Exposition (optional)</label>
  <select id="exposureSelect" onchange="saveState()">
      <option value="">− Automatisch nach Höhe</option>
@@ -3416,6 +3420,122 @@ return points.map((p,i)=>{
 // Art des Niederschlags: WMO-Schneecodes bzw. gemeldeter Schneefall zaehlen immer als Schnee,
 // sonst entscheidet die Lufttemperatur (<=0,5 Grad Schnee, bis 1,5 Grad Schneeregen).
 // Vorher stand ueberall "Regen", auch bei -1 Grad und dichtem Schneefall.
+// ===========================================================================
+// SCHNEEHÖHE (optional, per Schalter)
+// ---------------------------------------------------------------------------
+// Der GeoSphere-Nowcast liefert keine Schneehöhe (nur Niederschlag u.a.). Quellen:
+//  1) GeoSphere SNOWGRID-CL (Österreich, 1-km-Raster, täglich aktualisiert)
+//  2) Rückfall außerhalb Österreichs / bei Ausfall: Open-Meteo "snow_depth" (Modell)
+// Angezeigt wird die Schneehöhe nur, wenn der Wert höchstens 48 h alt ist und
+// mindestens 1 cm beträgt (sonst würde im Sommer oder mit alten Daten Unsinn stehen).
+// ===========================================================================
+const SNOWDEPTH_MAX_AGE_H = 48;
+const SNOWDEPTH_MIN_CM = 1;
+const snowDepthCache = new Map();
+let snowgridMetaPromise = null, snowgridMetaAt = 0;
+
+function snowDepthEnabled(){ try{ return localStorage.getItem('bt5_showSnowDepth')==='1'; }catch(e){ return false; } }
+function toggleSnowDepth(on){ try{ localStorage.setItem('bt5_showSnowDepth', on?'1':'0'); }catch(e){} }
+function initSnowDepthToggle(){
+const el=document.getElementById('showSnowDepth');
+if(el) el.checked=snowDepthEnabled();
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initSnowDepthToggle); else initSnowDepthToggle();
+
+function snowDepthToCm(value, unit){
+const v=Number(value);
+if(!Number.isFinite(v)) return null;
+const u=String(unit||'').trim().toLowerCase();
+if(u==='m'||u==='meter') return v*100;
+if(u==='cm') return v;
+if(u==='mm') return v/10;
+return null; // unbekannte Einheit: lieber nichts anzeigen als falsch umrechnen
+}
+
+async function getSnowgridMeta(){
+if(!snowgridMetaPromise || Date.now()-snowgridMetaAt > 3600000){
+ snowgridMetaAt = Date.now();
+ snowgridMetaPromise = fetch('https://dataset.api.hub.geosphere.at/v1/timeseries/historical/snowgrid_cl-v2-1d-1km/metadata',{cache:'no-store'})
+   .then(r=>{ if(!r.ok) throw new Error('SNOWGRID Metadaten HTTP '+r.status); return r.json(); })
+   .catch(e=>{ snowgridMetaPromise=null; throw e; });
+}
+return snowgridMetaPromise;
+}
+
+function pickSnowDepthParam(meta){
+const list=Array.isArray(meta?.parameters)?meta.parameters:[];
+const text=p=>[p.name,p.long_name,p.desc].filter(Boolean).join(' ').toLowerCase();
+const cand=list.filter(p=>{ const t=text(p); return /(depth|schneeh)/.test(t) && !/(fall|neuschnee|runoff)/.test(t); });
+return cand.find(p=>/(total|gesamt)/.test(text(p))) || cand[0] || null;
+}
+
+async function fetchSnowDepthSnowgrid(lat,lon){
+const meta=await getSnowgridMeta();
+const par=pickSnowDepthParam(meta);
+if(!par) throw new Error('SNOWGRID: kein Schneehöhen-Parameter gefunden');
+const endMs=Date.parse(meta.end_time);
+if(!Number.isFinite(endMs)) throw new Error('SNOWGRID: kein Endzeitpunkt');
+// Der Datensatz endet am letzten verfügbaren Tag. Ist der schon zu alt, gar nicht erst abfragen.
+const stand=endMs+86400000; // Tageswert gilt bis Tagesende
+if((Date.now()-stand)/3600000 > SNOWDEPTH_MAX_AGE_H) return {stale:true};
+const start=new Date(endMs-2*86400000).toISOString().slice(0,10);
+const end=new Date(endMs).toISOString().slice(0,10);
+const url='https://dataset.api.hub.geosphere.at/v1/timeseries/historical/snowgrid_cl-v2-1d-1km?lat_lon='+
+ encodeURIComponent(lat.toFixed(5)+','+lon.toFixed(5))+'&parameters='+encodeURIComponent(par.name)+
+ '&start='+start+'&end='+end+'&output_format=geojson';
+const r=await fetch(url,{cache:'no-store'});
+if(!r.ok) throw new Error('SNOWGRID HTTP '+r.status);
+const data=await r.json();
+const feat=data?.features?.[0];
+const ts=geoSphereTimestamps(data,feat);
+const vals=geoSphereValues(feat,par.name);
+for(let i=vals.length-1;i>=0;i--){
+ if(vals[i]===null||vals[i]===undefined) continue;
+ const cm=snowDepthToCm(vals[i], feat?.properties?.parameters?.[par.name]?.unit || par.unit);
+ const t=Date.parse(ts[i]);
+ if(cm===null||!Number.isFinite(t)) return null;
+ return {cm, stand:t+86400000, day:t, source:'GeoSphere SNOWGRID', model:false};
+}
+return null;
+}
+
+async function fetchSnowDepthOpenMeteo(lat,lon){
+const url='https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(4)+'&longitude='+lon.toFixed(4)+'&current=snow_depth&timezone=GMT';
+const r=await fetch(url,{cache:'no-store'});
+if(!r.ok) throw new Error('Schneehöhe Open-Meteo HTTP '+r.status);
+const c=(await r.json()).current||{};
+const cm=snowDepthToCm(c.snow_depth,'m');
+const t=Date.parse(String(c.time||'')+'Z');
+if(cm===null||!Number.isFinite(t)) return null;
+return {cm, stand:t, source:'Modell (Open-Meteo)', model:true};
+}
+
+// Liefert {cm, stand, source, model} oder null (= nichts anzeigen).
+async function fetchSnowDepth(lat,lon){
+if(!snowDepthEnabled()||!Number.isFinite(lat)||!Number.isFinite(lon)) return null;
+const key=lat.toFixed(2)+','+lon.toFixed(2);
+const hit=snowDepthCache.get(key);
+if(hit && Date.now()-hit.t<30*60000) return hit.v;
+let v=null;
+try{ v=await fetchSnowDepthSnowgrid(lat,lon); }catch(e){ try{ logDebugError('fetchSnowDepthSnowgrid',e); }catch(_){} }
+const tooOld = x => (Date.now()-x.stand)/3600000 > SNOWDEPTH_MAX_AGE_H;
+// Rückfall aufs Modell nur, wenn SNOWGRID keinen frischen Wert hat (auch ein frischer Wert von 0 cm zählt als Antwort).
+if(!v || v.stale || tooOld(v)){ try{ v=await fetchSnowDepthOpenMeteo(lat,lon); }catch(e){ try{ logDebugError('fetchSnowDepthOpenMeteo',e); }catch(_){} v=null; } }
+if(v && (tooOld(v) || v.cm < SNOWDEPTH_MIN_CM)) v=null;
+snowDepthCache.set(key,{t:Date.now(),v});
+return v;
+}
+
+function snowDepthText(sd){
+if(!sd) return '';
+const d=new Date(sd.day||sd.stand);
+const stand = sd.model
+  ? 'Modell'
+  : 'Stand '+d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
+const cm = sd.cm>=10 ? Math.round(sd.cm/5)*5 : Math.round(sd.cm);
+return 'ca. '+cm+' cm ('+stand+')';
+}
+
 function precipKind(temp, code, snowCm) {
 if ([71,73,75,77,85,86].includes(Number(code)) || Number(snowCm) >= 0.1) return 'snow';
 if ([68,69,83,84].includes(Number(code))) return 'sleet';
@@ -3615,6 +3735,8 @@ try{
  let html='<div class="live-tour-head"><strong><span class="live-dot"></span>Live-Tour-Wetter</strong><span class="live-muted">Stand '+new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'</span></div>';
  html+='<div class="live-row"><span>🌡️ '+(Number.isFinite(Number(c.temperature_2m))?Number(c.temperature_2m).toFixed(1):'–')+' °C</span><span>'+precipIcon(pKind)+' '+(pKind==='snow'?'Schnee':pKind==='sleet'?'Schneeregen':'Regen')+' jetzt: '+rainNow.toFixed(1)+' mm</span></div>';
  html+='<div class="live-row"><span>💨 Böen: '+(Number.isFinite(gust)?Math.round(gust):'–')+' km/h</span><span>📍 '+(usedGps?'GPS-Position':'Geschätzte Position')+'</span></div>';
+ const sdLive = await fetchSnowDepth(lat,lon).catch(()=>null);
+ if(sdLive) html+='<div class="live-row"><span>❄️ Schneehöhe '+snowDepthText(sdLive)+'</span></div>';
  
  if(arrival){
      const mins = liveMinutesUntil(arrival.time);
@@ -4882,6 +5004,16 @@ try{
  
  if(!maxThunderRisk && maxGust < 45 && !firstRainTime) {
      summaryBox += `✅ Wetterbedingungen im Zeitraum durchgehend <strong>stabil und ruhig</strong>.`;
+ }
+ if (snowDepthEnabled()) {
+     const sdStart = await fetchSnowDepth(lat, lon).catch(()=>null);
+     const pLat = Number(peak?.lat), pLon = Number(peak?.lon);
+     const sdPeak = (Number.isFinite(pLat) && Number.isFinite(pLon)) ? await fetchSnowDepth(pLat, pLon).catch(()=>null) : null;
+     if (sdStart || sdPeak) {
+         summaryBox += `<br>`;
+         if (sdStart) summaryBox += `❄️ Schneehöhe Start: <strong>${snowDepthText(sdStart)}</strong><br>`;
+         if (sdPeak) summaryBox += `❄️ Schneehöhe ${peak.name ? 'bei '+escapeHtml(peak.name) : 'Gipfel'}: <strong>${snowDepthText(sdPeak)}</strong><br>`;
+     }
  }
  summaryBox += `</div>`;
  html += summaryBox;
