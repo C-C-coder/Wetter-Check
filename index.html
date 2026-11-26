@@ -5006,13 +5006,16 @@ try{
      summaryBox += `✅ Wetterbedingungen im Zeitraum durchgehend <strong>stabil und ruhig</strong>.`;
  }
  if (snowDepthEnabled()) {
-     const sdStart = await fetchSnowDepth(lat, lon).catch(()=>null);
-     const pLat = Number(peak?.lat), pLon = Number(peak?.lon);
-     const sdPeak = (Number.isFinite(pLat) && Number.isFinite(pLon)) ? await fetchSnowDepth(pLat, pLon).catch(()=>null) : null;
-     if (sdStart || sdPeak) {
+     // Tal und Gipfel/Ziel getrennt (bei Abstieg/Flach gelten die dort ermittelten Punkte, siehe routePoints).
+     const endPt = hasPeakPoint ? routePoints[routePoints.length - 1] : null;
+     const [sdTal, sdGipfel] = await Promise.all([
+         fetchSnowDepth(talLat, talLon).catch(()=>null),
+         endPt ? fetchSnowDepth(endPt.lat, endPt.lon).catch(()=>null) : Promise.resolve(null)
+     ]);
+     if (sdTal || sdGipfel) {
          summaryBox += `<br>`;
-         if (sdStart) summaryBox += `❄️ Schneehöhe Start: <strong>${snowDepthText(sdStart)}</strong><br>`;
-         if (sdPeak) summaryBox += `❄️ Schneehöhe ${peak.name ? 'bei '+escapeHtml(peak.name) : 'Gipfel'}: <strong>${snowDepthText(sdPeak)}</strong><br>`;
+         if (sdTal) summaryBox += `❄️ Schneehöhe Tal (${Math.round(baseElev)}m): <strong>${snowDepthText(sdTal)}</strong><br>`;
+         if (sdGipfel) summaryBox += `❄️ Schneehöhe ${escapeHtml(secondLabel)}${hasPeakAlt ? ' ('+Math.round(parsedPeakAlt)+'m)' : ''}: <strong>${snowDepthText(sdGipfel)}</strong><br>`;
      }
  }
  summaryBox += `</div>`;
